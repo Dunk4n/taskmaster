@@ -18,7 +18,9 @@ LIB_DIRECTORY	=	./libft/
 
 BUILD_DIRECTORY	=	build
 
-SRC_FILE_NAME	=	main.c			\
+SRC_FILE_NAME	=	main.c												\
+					configuration_parsing_program_field_load_function.c	\
+					configuration_parsing.c								\
 
 SRC			=	$(addprefix $(SRC_DIRECTORY),$(SRC_FILE_NAME))
 
@@ -31,7 +33,7 @@ CFLAGS		=	-I$(INC_DIRECTORY) -Wall -Wextra -Werror -fcommon
 CDEBUG_FLAGS	=	-I$(INC_DIRECTORY) -Wall -Wextra -g -no-pie -fcommon
 CDEBUG_FLAGS_FSANITIZE	=	-g -fsanitize=address -fsanitize=leak -fsanitize=pointer-compare -fsanitize=pointer-subtract -fsanitize=undefined
 
-LDFLAGS		=	-L$(LIB_DIRECTORY) -lft
+LDFLAGS		=	-L$(LIB_DIRECTORY) -lyaml #-lft
 
 all:	$(NAME)
 
@@ -56,7 +58,7 @@ fclean: clean
 	@rm -f $(NAME)
 
 $(NAME): options $(OBJ)
-	@$(MAKE) -C $(LIB_DIRECTORY) --no-print-directory
+	#@$(MAKE) -C $(LIB_DIRECTORY) --no-print-directory
 	@echo "  BUILD    $@"
 	@$(CC) $(CFLAGS) -o $@ $(OBJ) $(LDFLAGS)
 
