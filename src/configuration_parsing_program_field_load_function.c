@@ -26,13 +26,13 @@ unsigned int atoui(const char *str)
 uint8_t program_field_cmd_load_function(yaml_parser_t *parser, struct program_specification *program, yaml_event_t *event)
 {
     if(parser == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     if(program == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     if(event == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     uint8_t *new_cmd;
     uint32_t cnt;
@@ -54,15 +54,15 @@ uint8_t program_field_cmd_load_function(yaml_parser_t *parser, struct program_sp
         #ifdef PRODUCTION
         fprintf(stderr, "\033[1;31mERROR\033[0m\n");
         #endif 
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     if(event->type != YAML_SCALAR_EVENT || event->data.scalar.value == NULL || event->data.scalar.length == 0)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     new_cmd = reallocarray(program->str_start_command, sizeof(uint8_t), event->data.scalar.length + 1);
     if(new_cmd == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     program->str_start_command = new_cmd;
 
@@ -74,7 +74,7 @@ uint8_t program_field_cmd_load_function(yaml_parser_t *parser, struct program_sp
         }
     program->str_start_command[cnt] = NIL;
 
-    return (RETURN_SUCCESS);
+    return (EXIT_SUCCESS);
 }
 
 /**
@@ -83,13 +83,13 @@ uint8_t program_field_cmd_load_function(yaml_parser_t *parser, struct program_sp
 uint8_t program_field_numprocs_load_function(yaml_parser_t *parser, struct program_specification *program, yaml_event_t *event)
 {
     if(parser == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     if(program == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     if(event == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     uint32_t cnt;
 
@@ -109,25 +109,25 @@ uint8_t program_field_numprocs_load_function(yaml_parser_t *parser, struct progr
         #ifdef PRODUCTION
         fprintf(stderr, "\033[1;31mERROR\033[0m\n");
         #endif 
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     if(event->type != YAML_SCALAR_EVENT || event->data.scalar.value == NULL || event->data.scalar.length == 0)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     cnt = 0;
     while(cnt < event->data.scalar.length)
         {
         if(event->data.scalar.value[cnt] < '0' || event->data.scalar.value[cnt] > '9')
-            return (RETURN_FAILURE);
+            return (EXIT_FAILURE);
 
         cnt++;
         }
 
     program->number_of_process = atoui((char *) event->data.scalar.value);
     if(program->number_of_process == 0)
-        return (RETURN_FAILURE);
-    return (RETURN_SUCCESS);
+        return (EXIT_FAILURE);
+    return (EXIT_SUCCESS);
 }
 
 /**
@@ -136,13 +136,13 @@ uint8_t program_field_numprocs_load_function(yaml_parser_t *parser, struct progr
 uint8_t program_field_autostart_load_function(yaml_parser_t *parser, struct program_specification *program, yaml_event_t *event)
 {
     if(parser == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     if(program == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     if(event == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     yaml_event_delete(event);
     if(yaml_parser_parse(parser, event) != 1)
@@ -158,20 +158,20 @@ uint8_t program_field_autostart_load_function(yaml_parser_t *parser, struct prog
         #ifdef PRODUCTION
         fprintf(stderr, "\033[1;31mERROR\033[0m\n");
         #endif 
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     if(event->type != YAML_SCALAR_EVENT || event->data.scalar.value == NULL || event->data.scalar.length == 0)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     if(strcmp((char *) event->data.scalar.value, "false") == 0)
         program->auto_start = FALSE;
     else if(strcmp((char *) event->data.scalar.value, "true") == 0)
         program->auto_start = TRUE;
     else
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
-    return (RETURN_SUCCESS);
+    return (EXIT_SUCCESS);
 }
 
 /**
@@ -180,13 +180,13 @@ uint8_t program_field_autostart_load_function(yaml_parser_t *parser, struct prog
 uint8_t program_field_autorestart_load_function(yaml_parser_t *parser, struct program_specification *program, yaml_event_t *event)
 {
     if(parser == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     if(program == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     if(event == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     yaml_event_delete(event);
     if(yaml_parser_parse(parser, event) != 1)
@@ -202,11 +202,11 @@ uint8_t program_field_autorestart_load_function(yaml_parser_t *parser, struct pr
         #ifdef PRODUCTION
         fprintf(stderr, "\033[1;31mERROR\033[0m\n");
         #endif 
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     if(event->type != YAML_SCALAR_EVENT || event->data.scalar.value == NULL || event->data.scalar.length == 0)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     if(strcmp((char *) event->data.scalar.value, "false") == 0)
         program->e_auto_restart = PROGRAM_AUTO_RESTART_FALSE;
@@ -215,9 +215,9 @@ uint8_t program_field_autorestart_load_function(yaml_parser_t *parser, struct pr
     else if(strcmp((char *) event->data.scalar.value, "unexpected") == 0)
         program->e_auto_restart = PROGRAM_AUTO_RESTART_UNEXPECTED;
     else
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
-    return (RETURN_SUCCESS);
+    return (EXIT_SUCCESS);
 }
 
 /**
@@ -226,13 +226,13 @@ uint8_t program_field_autorestart_load_function(yaml_parser_t *parser, struct pr
 uint8_t program_field_exitcodes_load_function(yaml_parser_t *parser, struct program_specification *program, yaml_event_t *event)
 {
     if(parser == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     if(program == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     if(event == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     uint32_t cnt;
     uint32_t pos;
@@ -258,13 +258,13 @@ uint8_t program_field_exitcodes_load_function(yaml_parser_t *parser, struct prog
         #ifdef PRODUCTION
         fprintf(stderr, "\033[1;31mERROR\033[0m\n");
         #endif 
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     if(event->type == YAML_SCALAR_EVENT)
         {
         if(event->data.scalar.value == NULL || event->data.scalar.length == 0)
-            return (RETURN_FAILURE);
+            return (EXIT_FAILURE);
 
         exit_code = 0;
 
@@ -272,18 +272,18 @@ uint8_t program_field_exitcodes_load_function(yaml_parser_t *parser, struct prog
         while(cnt < event->data.scalar.length)
             {
             if(event->data.scalar.value[cnt] < '0' || event->data.scalar.value[cnt] > '9')
-                return (RETURN_FAILURE);
+                return (EXIT_FAILURE);
 
             cnt++;
             }
 
         exit_code = atoui((char *) event->data.scalar.value);
         if(exit_code > UINT8_MAX)
-            return (RETURN_FAILURE);
+            return (EXIT_FAILURE);
 
         tmp_exit_codes = realloc(program->exit_codes, 1 * sizeof(uint8_t));
         if(tmp_exit_codes == NULL)
-            return (RETURN_FAILURE);
+            return (EXIT_FAILURE);
 
         program->exit_codes = tmp_exit_codes;
 
@@ -293,6 +293,8 @@ uint8_t program_field_exitcodes_load_function(yaml_parser_t *parser, struct prog
         }
     else if(event->type == YAML_SEQUENCE_START_EVENT)
         {
+        program->exit_codes_number = 0;
+
         pos = 0;
         while(TRUE)
             {
@@ -310,13 +312,13 @@ uint8_t program_field_exitcodes_load_function(yaml_parser_t *parser, struct prog
                 #ifdef PRODUCTION
                 fprintf(stderr, "\033[1;31mERROR\033[0m\n");
                 #endif 
-                return (RETURN_FAILURE);
+                return (EXIT_FAILURE);
                 }
 
             if(event->type == YAML_SCALAR_EVENT)
                 {
                 if(event->data.scalar.value == NULL || event->data.scalar.length == 0)
-                    return (RETURN_FAILURE);
+                    return (EXIT_FAILURE);
 
                 exit_code = 0;
 
@@ -324,17 +326,17 @@ uint8_t program_field_exitcodes_load_function(yaml_parser_t *parser, struct prog
                 while(cnt < event->data.scalar.length)
                     {
                     if(event->data.scalar.value[cnt] < '0' || event->data.scalar.value[cnt] > '9')
-                        return (RETURN_FAILURE);
+                        return (EXIT_FAILURE);
 
                     cnt++;
                     }
 
                 exit_code = atoui((char *) event->data.scalar.value);
                 if(exit_code > UINT8_MAX)
-                    return (RETURN_FAILURE);
+                    return (EXIT_FAILURE);
 
                 cnt = 0;
-                while(cnt < program->exit_codes_number)
+                while(cnt < program->exit_codes_number && program->exit_codes != NULL)
                     {
                     if(exit_code == program->exit_codes[cnt])
                         break;
@@ -345,7 +347,7 @@ uint8_t program_field_exitcodes_load_function(yaml_parser_t *parser, struct prog
                     {
                     tmp_exit_codes = reallocarray(program->exit_codes, sizeof(uint8_t), pos + 1);
                     if(tmp_exit_codes == NULL)
-                        return (RETURN_FAILURE);
+                        return (EXIT_FAILURE);
 
                     program->exit_codes = tmp_exit_codes;
 
@@ -359,13 +361,13 @@ uint8_t program_field_exitcodes_load_function(yaml_parser_t *parser, struct prog
             else if(event->type == YAML_SEQUENCE_END_EVENT)
                 break;
             else
-                return (RETURN_FAILURE);
+                return (EXIT_FAILURE);
             }
         }
     else
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
-    return (RETURN_SUCCESS);
+    return (EXIT_SUCCESS);
 }
 
 /**
@@ -374,13 +376,13 @@ uint8_t program_field_exitcodes_load_function(yaml_parser_t *parser, struct prog
 uint8_t program_field_starttime_load_function(yaml_parser_t *parser, struct program_specification *program, yaml_event_t *event)
 {
     if(parser == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     if(program == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     if(event == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     uint32_t cnt;
 
@@ -400,23 +402,23 @@ uint8_t program_field_starttime_load_function(yaml_parser_t *parser, struct prog
         #ifdef PRODUCTION
         fprintf(stderr, "\033[1;31mERROR\033[0m\n");
         #endif 
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     if(event->type != YAML_SCALAR_EVENT || event->data.scalar.value == NULL || event->data.scalar.length == 0)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     cnt = 0;
     while(cnt < event->data.scalar.length)
         {
         if(event->data.scalar.value[cnt] < '0' || event->data.scalar.value[cnt] > '9')
-            return (RETURN_FAILURE);
+            return (EXIT_FAILURE);
 
         cnt++;
         }
 
     program->start_time = atoui((char *) event->data.scalar.value);
-    return (RETURN_SUCCESS);
+    return (EXIT_SUCCESS);
 }
 
 /**
@@ -425,13 +427,13 @@ uint8_t program_field_starttime_load_function(yaml_parser_t *parser, struct prog
 uint8_t program_field_startretries_load_function(yaml_parser_t *parser, struct program_specification *program, yaml_event_t *event)
 {
     if(parser == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     if(program == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     if(event == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     uint32_t cnt;
 
@@ -451,23 +453,23 @@ uint8_t program_field_startretries_load_function(yaml_parser_t *parser, struct p
         #ifdef PRODUCTION
         fprintf(stderr, "\033[1;31mERROR\033[0m\n");
         #endif 
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     if(event->type != YAML_SCALAR_EVENT || event->data.scalar.value == NULL || event->data.scalar.length == 0)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     cnt = 0;
     while(cnt < event->data.scalar.length)
         {
         if(event->data.scalar.value[cnt] < '0' || event->data.scalar.value[cnt] > '9')
-            return (RETURN_FAILURE);
+            return (EXIT_FAILURE);
 
         cnt++;
         }
 
     program->start_retries = atoui((char *) event->data.scalar.value);
-    return (RETURN_SUCCESS);
+    return (EXIT_SUCCESS);
 }
 
 /**
@@ -476,13 +478,13 @@ uint8_t program_field_startretries_load_function(yaml_parser_t *parser, struct p
 uint8_t program_field_stopsignal_load_function(yaml_parser_t *parser, struct program_specification *program, yaml_event_t *event)
 {
     if(parser == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     if(program == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     if(event == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     uint8_t *signal_str_name[] =
         {
@@ -526,11 +528,11 @@ uint8_t program_field_stopsignal_load_function(yaml_parser_t *parser, struct pro
         #ifdef PRODUCTION
         fprintf(stderr, "\033[1;31mERROR\033[0m\n");
         #endif 
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     if(event->type != YAML_SCALAR_EVENT || event->data.scalar.value == NULL || event->data.scalar.length == 0)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     value = 0;
     value = (int32_t) atoui((char *) event->data.scalar.value);
@@ -541,7 +543,7 @@ uint8_t program_field_stopsignal_load_function(yaml_parser_t *parser, struct pro
         if(value == signal_value[cnt])
             {
             program->stop_signal = signal_value[cnt];
-            return (RETURN_SUCCESS);
+            return (EXIT_SUCCESS);
             }
 
         cnt++;
@@ -553,13 +555,13 @@ uint8_t program_field_stopsignal_load_function(yaml_parser_t *parser, struct pro
         if(strcmp((char *) event->data.scalar.value, (char *) signal_str_name[cnt]) == 0)
             {
             program->stop_signal = signal_value[cnt];
-            return (RETURN_SUCCESS);
+            return (EXIT_SUCCESS);
             }
 
         cnt++;
         }
 
-    return (RETURN_FAILURE);
+    return (EXIT_FAILURE);
 }
 
 /**
@@ -568,13 +570,13 @@ uint8_t program_field_stopsignal_load_function(yaml_parser_t *parser, struct pro
 uint8_t program_field_stoptime_load_function(yaml_parser_t *parser, struct program_specification *program, yaml_event_t *event)
 {
     if(parser == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     if(program == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     if(event == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     uint32_t cnt;
 
@@ -594,23 +596,23 @@ uint8_t program_field_stoptime_load_function(yaml_parser_t *parser, struct progr
         #ifdef PRODUCTION
         fprintf(stderr, "\033[1;31mERROR\033[0m\n");
         #endif 
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     if(event->type != YAML_SCALAR_EVENT || event->data.scalar.value == NULL || event->data.scalar.length == 0)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     cnt = 0;
     while(cnt < event->data.scalar.length)
         {
         if(event->data.scalar.value[cnt] < '0' || event->data.scalar.value[cnt] > '9')
-            return (RETURN_FAILURE);
+            return (EXIT_FAILURE);
 
         cnt++;
         }
 
     program->stop_time = atoui((char *) event->data.scalar.value);
-    return (RETURN_SUCCESS);
+    return (EXIT_SUCCESS);
 }
 
 /**
@@ -619,13 +621,13 @@ uint8_t program_field_stoptime_load_function(yaml_parser_t *parser, struct progr
 uint8_t program_field_stdout_load_function(yaml_parser_t *parser, struct program_specification *program, yaml_event_t *event)
 {
     if(parser == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     if(program == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     if(event == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     uint8_t *new_cmd;
     uint32_t cnt;
@@ -647,15 +649,15 @@ uint8_t program_field_stdout_load_function(yaml_parser_t *parser, struct program
         #ifdef PRODUCTION
         fprintf(stderr, "\033[1;31mERROR\033[0m\n");
         #endif 
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     if(event->type != YAML_SCALAR_EVENT || event->data.scalar.value == NULL || event->data.scalar.length == 0)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     new_cmd = reallocarray(program->str_stdout, sizeof(uint8_t), event->data.scalar.length + 1);
     if(new_cmd == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     program->str_stdout = new_cmd;
 
@@ -667,7 +669,7 @@ uint8_t program_field_stdout_load_function(yaml_parser_t *parser, struct program
         }
     program->str_stdout[cnt] = NIL;
 
-    return (RETURN_SUCCESS);
+    return (EXIT_SUCCESS);
 }
 
 /**
@@ -676,13 +678,13 @@ uint8_t program_field_stdout_load_function(yaml_parser_t *parser, struct program
 uint8_t program_field_stderr_load_function(yaml_parser_t *parser, struct program_specification *program, yaml_event_t *event)
 {
     if(parser == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     if(program == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     if(event == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     uint8_t *new_cmd;
     uint32_t cnt;
@@ -704,15 +706,15 @@ uint8_t program_field_stderr_load_function(yaml_parser_t *parser, struct program
         #ifdef PRODUCTION
         fprintf(stderr, "\033[1;31mERROR\033[0m\n");
         #endif 
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     if(event->type != YAML_SCALAR_EVENT || event->data.scalar.value == NULL || event->data.scalar.length == 0)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     new_cmd = reallocarray(program->str_stderr, sizeof(uint8_t), event->data.scalar.length + 1);
     if(new_cmd == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     program->str_stderr = new_cmd;
 
@@ -723,7 +725,7 @@ uint8_t program_field_stderr_load_function(yaml_parser_t *parser, struct program
         cnt++;
         }
     program->str_stderr[cnt] = NIL;
-    return (RETURN_SUCCESS);
+    return (EXIT_SUCCESS);
 }
 
 /**
@@ -732,13 +734,13 @@ uint8_t program_field_stderr_load_function(yaml_parser_t *parser, struct program
 uint8_t program_field_env_load_function(yaml_parser_t *parser, struct program_specification *program, yaml_event_t *event)
 {
     if(parser == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     if(program == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     if(event == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     uint32_t  cnt;
     uint32_t  pos;
@@ -781,11 +783,11 @@ uint8_t program_field_env_load_function(yaml_parser_t *parser, struct program_sp
         #ifdef PRODUCTION
         fprintf(stderr, "\033[1;31mERROR\033[0m\n");
         #endif 
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     if(event->type != YAML_MAPPING_START_EVENT)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     pos = 0;
     while(TRUE)
@@ -804,23 +806,23 @@ uint8_t program_field_env_load_function(yaml_parser_t *parser, struct program_sp
             #ifdef PRODUCTION
             fprintf(stderr, "\033[1;31mERROR\033[0m\n");
             #endif 
-            return (RETURN_FAILURE);
+            return (EXIT_FAILURE);
             }
 
         if(event->type == YAML_SCALAR_EVENT)
             {
             if(event->data.scalar.length == 0 || event->data.scalar.value == NULL)
-                return (RETURN_FAILURE);
+                return (EXIT_FAILURE);
             if(event->data.scalar.length >= SIZE_MAX - 1)
-                return (RETURN_FAILURE);
+                return (EXIT_FAILURE);
 
             if(pos == UINT32_MAX)
-                return (RETURN_FAILURE);
+                return (EXIT_FAILURE);
 
             tmp_env = NULL;
             tmp_env = reallocarray(program->env, sizeof(uint8_t *), pos + 1);
             if(tmp_env == NULL)
-                return (RETURN_FAILURE);
+                return (EXIT_FAILURE);
             program->env = tmp_env;
             program->env[pos] = NULL;
 
@@ -828,7 +830,7 @@ uint8_t program_field_env_load_function(yaml_parser_t *parser, struct program_sp
 
             program->env[pos] = malloc((event->data.scalar.length + 2) * sizeof(uint8_t));
             if(program->env[pos] == NULL)
-                return (RETURN_FAILURE);
+                return (EXIT_FAILURE);
 
             cnt = 0;
             while(cnt < event->data.scalar.length)
@@ -856,21 +858,21 @@ uint8_t program_field_env_load_function(yaml_parser_t *parser, struct program_sp
                 #ifdef PRODUCTION
                 fprintf(stderr, "\033[1;31mERROR\033[0m\n");
                 #endif 
-                return (RETURN_FAILURE);
+                return (EXIT_FAILURE);
                 }
 
             if(event->type != YAML_SCALAR_EVENT || event->data.scalar.length == 0 || event->data.scalar.value == NULL)
-                return (RETURN_FAILURE);
+                return (EXIT_FAILURE);
 
             if(event->data.scalar.length == SIZE_MAX)
-                return (RETURN_FAILURE);
+                return (EXIT_FAILURE);
             if(cnt >= SIZE_MAX - 1 - event->data.scalar.length)
-                return (RETURN_FAILURE);
+                return (EXIT_FAILURE);
 
             tmp_str = NULL;
             tmp_str = realloc(program->env[pos], (cnt + 1 + event->data.scalar.length) * sizeof(uint8_t));
             if(tmp_str == NULL)
-                return (RETURN_FAILURE);
+                return (EXIT_FAILURE);
             program->env[pos] = tmp_str;
 
             cnt = 0;
@@ -886,13 +888,13 @@ uint8_t program_field_env_load_function(yaml_parser_t *parser, struct program_sp
         else if(event->type == YAML_MAPPING_END_EVENT)
             break;
         else
-            return (RETURN_FAILURE);
+            return (EXIT_FAILURE);
         }
 
     if(event->type != YAML_MAPPING_END_EVENT)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
-    return (RETURN_SUCCESS);
+    return (EXIT_SUCCESS);
 }
 
 /**
@@ -901,13 +903,13 @@ uint8_t program_field_env_load_function(yaml_parser_t *parser, struct program_sp
 uint8_t program_field_workingdir_load_function(yaml_parser_t *parser, struct program_specification *program, yaml_event_t *event)
 {
     if(parser == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     if(program == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     if(event == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     uint8_t *new_cmd;
     uint32_t cnt;
@@ -929,15 +931,15 @@ uint8_t program_field_workingdir_load_function(yaml_parser_t *parser, struct pro
         #ifdef PRODUCTION
         fprintf(stderr, "\033[1;31mERROR\033[0m\n");
         #endif 
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     if(event->type != YAML_SCALAR_EVENT || event->data.scalar.value == NULL || event->data.scalar.length == 0)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     new_cmd = reallocarray(program->str_working_directory, sizeof(uint8_t), event->data.scalar.length + 1);
     if(new_cmd == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     program->str_working_directory = new_cmd;
 
@@ -949,7 +951,7 @@ uint8_t program_field_workingdir_load_function(yaml_parser_t *parser, struct pro
         }
     program->str_working_directory[cnt] = NIL;
 
-    return (RETURN_SUCCESS);
+    return (EXIT_SUCCESS);
 }
 
 /**
@@ -958,13 +960,13 @@ uint8_t program_field_workingdir_load_function(yaml_parser_t *parser, struct pro
 uint8_t program_field_umask_load_function(yaml_parser_t *parser, struct program_specification *program, yaml_event_t *event)
 {
     if(parser == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     if(program == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     if(event == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     uint8_t cnt;
 
@@ -984,20 +986,20 @@ uint8_t program_field_umask_load_function(yaml_parser_t *parser, struct program_
         #ifdef PRODUCTION
         fprintf(stderr, "\033[1;31mERROR\033[0m\n");
         #endif 
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     if(event->type != YAML_SCALAR_EVENT || event->data.scalar.value == NULL || event->data.scalar.length == 0)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     if(event->data.scalar.length != 3)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     cnt = 0;
     while(cnt < event->data.scalar.length)
         {
         if(event->data.scalar.value[cnt] < '0' || event->data.scalar.value[cnt] > '7')
-            return (RETURN_FAILURE);
+            return (EXIT_FAILURE);
 
         cnt++;
         }
@@ -1005,7 +1007,7 @@ uint8_t program_field_umask_load_function(yaml_parser_t *parser, struct program_
     program->umask = 0;
     program->umask = (event->data.scalar.value[0] - '0') << 6 | (event->data.scalar.value[1] - '0') << 3 | (event->data.scalar.value[2] - '0');
 
-    return (RETURN_SUCCESS);
+    return (EXIT_SUCCESS);
 }
 
 /**
@@ -1014,13 +1016,13 @@ uint8_t program_field_umask_load_function(yaml_parser_t *parser, struct program_
 uint8_t program_field_log_load_function(yaml_parser_t *parser, struct program_specification *program, yaml_event_t *event)
 {
     if(parser == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     if(program == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     if(event == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     yaml_event_delete(event);
     if(yaml_parser_parse(parser, event) != 1)
@@ -1036,11 +1038,11 @@ uint8_t program_field_log_load_function(yaml_parser_t *parser, struct program_sp
         #ifdef PRODUCTION
         fprintf(stderr, "\033[1;31mERROR\033[0m\n");
         #endif 
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     if(event->type != YAML_SCALAR_EVENT || event->data.scalar.value == NULL || event->data.scalar.length == 0)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     if(strcmp((char *) event->data.scalar.value, "false") == 0)
         program->e_log = PROGRAM_LOG_FALSE;
@@ -1049,7 +1051,7 @@ uint8_t program_field_log_load_function(yaml_parser_t *parser, struct program_sp
     else if(strcmp((char *) event->data.scalar.value, "mail") == 0)
         program->e_log = PROGRAM_LOG_MAIL;
     else
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
-    return (RETURN_SUCCESS);
+    return (EXIT_SUCCESS);
 }

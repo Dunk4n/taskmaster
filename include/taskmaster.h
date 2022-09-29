@@ -12,8 +12,6 @@
 # include <unistd.h>
 # include "yaml.h"
 
-# define RETURN_FAILURE 1
-# define RETURN_SUCCESS 0
 # define FALSE (0)
 # define TRUE (1)
 # define NIL            ('\0')
@@ -132,6 +130,11 @@ struct program_specification
     uint8_t                          *str_working_directory;    // 12. A working directory to set before launching the program
     mode_t                            umask;                    // 13. An umask to set before launching the program
     enum program_log_status           e_log;                    // 3.  More advanced logging/reporting facilities (Alerts via email/http/syslog/etc...)
+
+    /**
+    * Linked list
+    */
+    struct program_specification *next_program;
 };
 
 /**
@@ -140,7 +143,8 @@ struct program_specification
 struct program_list
 {
     uint8_t                       programs_loaded;
-    struct program_specification *programs;
+    struct program_specification *program_linked_list;
+    struct program_specification *last_program_linked_list;
     uint32_t                      number_of_program;
 };
 
@@ -162,5 +166,6 @@ uint8_t program_field_log_load_function(yaml_parser_t *parser, struct program_sp
 
 uint8_t parse_config_file(uint8_t *file_name, struct program_list *program_list);
 void free_program_list(struct program_list *programs);
+void display_program_list(struct program_list *programs);
 
 #endif

@@ -47,11 +47,11 @@ uint8_t (*const g_program_specification_field_load_function[NUMBER_OF_PROGRAM_SP
 /**
 * This function set to the default value the structure program_specification
 */
-uint8_t set_program_default_value(struct program_specification *program)
+static uint8_t set_program_default_value(struct program_specification *program)
     {
     if(program == NULL)
         {
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     memset(&program->global_status, 0, sizeof(program->global_status));
@@ -78,31 +78,34 @@ uint8_t set_program_default_value(struct program_specification *program)
     program->str_working_directory = NULL;
     program->umask = PROGRAM_DEFAULT_UMASk;
     program->e_log = PROGRAM_DEFAULT_LOG_STATUS;
+    program->next_program = NULL;
+
+    program->exit_codes_number = 0;
 
     program->exit_codes = malloc(1 * sizeof(uint8_t));
     if(program->exit_codes == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
     program->exit_codes[0] = PROGRAM_DEFAULT_EXIT_CODE;
     program->exit_codes_number = 1;
 
     program->global_status.global_status_struct_init = TRUE;
 
-    return (RETURN_SUCCESS);
+    return (EXIT_SUCCESS);
     }
 
 /**
 * This function reset to the default value the structure program_specification without the name
 */
-uint8_t reset_program_default_value_without_name(struct program_specification *program)
+static uint8_t reset_program_default_value_without_name(struct program_specification *program)
     {
     if(program == NULL)
         {
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     if(program->global_status.global_status_struct_init == FALSE)
         {
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     uint32_t cnt;
@@ -157,112 +160,132 @@ uint8_t reset_program_default_value_without_name(struct program_specification *p
 
     program->exit_codes = malloc(1 * sizeof(uint8_t));
     if(program->exit_codes == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
     program->exit_codes[0] = PROGRAM_DEFAULT_EXIT_CODE;
     program->exit_codes_number = 1;
 
     program->global_status.global_status_struct_init = TRUE;
 
-    return (RETURN_SUCCESS);
+    return (EXIT_SUCCESS);
     }
 
 /**
 * This function add a new structure program_specification in the dynamic array of structure program_specification in the structure program_list
 */
-uint8_t add_new_program(struct program_list *program_list, uint8_t *program_name, size_t program_name_length)
+static uint8_t add_new_program(struct program_list *program_list, uint8_t *program_name, size_t program_name_length)
     {
     if(program_list == NULL)
         {
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     if(program_name == NULL)
         {
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     if(program_name_length == 0 || program_name_length == SIZE_MAX)
         {
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     if(program_list->number_of_program == UINT32_MAX)
         {
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
-    struct program_specification *programs_tmp;
+    if(program_list->program_linked_list != NULL && program_list->last_program_linked_list == NULL)
+        return (EXIT_FAILURE);
+
+    if(program_list->program_linked_list == NULL && program_list->last_program_linked_list != NULL)
+        return (EXIT_FAILURE);
+
+    struct program_specification *program_tmp;
     size_t                        cnt;
 
-    programs_tmp = NULL;
-    cnt          = 0;
+    program_tmp = NULL;
+    cnt         = 0;
 
-    programs_tmp = reallocarray(program_list->programs, sizeof(struct program_specification), program_list->number_of_program + 1);
+    program_tmp = malloc(sizeof(struct program_specification));
+    if(program_tmp == NULL)
+        return (EXIT_FAILURE);
 
-    if(programs_tmp == NULL)
-        return (RETURN_FAILURE);
+    if(set_program_default_value(program_tmp) != EXIT_SUCCESS)
+        {
+        free(program_tmp);
+        program_tmp = NULL;
+        return (EXIT_FAILURE);
+        }
 
-    program_list->programs = programs_tmp;
+    if(program_list->program_linked_list == NULL)
+        {
+        program_list->program_linked_list      = program_tmp;
+        program_list->last_program_linked_list = program_tmp;
 
-    program_list->number_of_program++;
+        program_list->number_of_program = 1;
+        }
+    else
+        {
+        program_list->last_program_linked_list->next_program = program_tmp;
+        program_list->last_program_linked_list = program_tmp;
 
-    if(set_program_default_value(&(program_list->programs[program_list->number_of_program - 1])) != RETURN_SUCCESS)
-        return (RETURN_FAILURE);
+        program_list->number_of_program++;
+        }
 
-    program_list->programs[program_list->number_of_program - 1].str_name = malloc((program_name_length + 1) * sizeof(uint8_t));
-    if(program_list->programs[program_list->number_of_program - 1].str_name == NULL)
-        return (RETURN_FAILURE);
+    program_list->last_program_linked_list->str_name = malloc((program_name_length + 1) * sizeof(uint8_t));
+    if(program_list->last_program_linked_list->str_name == NULL)
+        return (EXIT_FAILURE);
 
     cnt = 0;
     while(cnt < program_name_length)
         {
-        program_list->programs[program_list->number_of_program - 1].str_name[cnt] = program_name[cnt];
+        program_list->last_program_linked_list->str_name[cnt] = program_name[cnt];
 
         cnt++;
         }
 
-    program_list->programs[program_list->number_of_program - 1].str_name[cnt] = NIL;
-    program_list->programs[program_list->number_of_program - 1].name_length = cnt;
+    program_list->last_program_linked_list->str_name[cnt] = NIL;
+    program_list->last_program_linked_list->name_length = cnt;
 
-    return (RETURN_SUCCESS);
+    return (EXIT_SUCCESS);
     }
 
 /**
 * This function check if all the required attribut of the structure program_specification has been set
 */
-uint8_t check_required_attribute_in_program(struct program_specification *program)
+static uint8_t check_required_attribute_in_program(struct program_specification *program)
     {
     if(program == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     if(program->str_name == NULL || program->name_length == 0)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
     if(program->str_start_command == NULL)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
     if(program->exit_codes == NULL || program->exit_codes_number == 0)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
-    return (RETURN_SUCCESS);
+    return (EXIT_SUCCESS);
     }
 
 /**
 * This function parse all the attribute of one program in the YAML config file
 */
-uint8_t parse_config_program_attribute(yaml_parser_t *parser, struct program_specification *program, yaml_event_t *event)
+static uint8_t parse_config_program_attribute(yaml_parser_t *parser, struct program_specification *program, yaml_event_t *event)
     {
     if(parser == NULL)
         {
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     if(program == NULL)
         {
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     if(event == NULL)
         {
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     uint8_t cnt;
@@ -270,7 +293,7 @@ uint8_t parse_config_program_attribute(yaml_parser_t *parser, struct program_spe
     cnt = 0;
 
     if(event->type != YAML_MAPPING_START_EVENT)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     while(TRUE)
         {
@@ -288,7 +311,7 @@ uint8_t parse_config_program_attribute(yaml_parser_t *parser, struct program_spe
             #ifdef PRODUCTION
             fprintf(stderr, "\033[1;31mERROR\033[0m\n");
             #endif
-            return (RETURN_FAILURE);
+            return (EXIT_FAILURE);
             }
 
         if(event->type == YAML_MAPPING_END_EVENT)
@@ -301,8 +324,8 @@ uint8_t parse_config_program_attribute(yaml_parser_t *parser, struct program_spe
                 {
                 if(strcmp((char *) event->data.scalar.value, (char *) g_program_specification_field_name[cnt]) == 0)
                     {
-                    if(g_program_specification_field_load_function[cnt](parser, program, event) != RETURN_SUCCESS)
-                        return (RETURN_FAILURE);
+                    if(g_program_specification_field_load_function[cnt](parser, program, event) != EXIT_SUCCESS)
+                        return (EXIT_FAILURE);
 
                     break;
                     }
@@ -311,33 +334,33 @@ uint8_t parse_config_program_attribute(yaml_parser_t *parser, struct program_spe
                 }
             }
         else
-            return (RETURN_FAILURE);
+            return (EXIT_FAILURE);
         }
 
-    if(check_required_attribute_in_program(program) != RETURN_SUCCESS)
-        return (RETURN_FAILURE);
+    if(check_required_attribute_in_program(program) != EXIT_SUCCESS)
+        return (EXIT_FAILURE);
 
-    return (RETURN_SUCCESS);
+    return (EXIT_SUCCESS);
     }
 
 /**
 * This function parse one program in the YAML config file
 */
-uint8_t parse_config_one_program(yaml_parser_t *parser, struct program_list *program_list, yaml_event_t *event)
+static uint8_t parse_config_one_program(yaml_parser_t *parser, struct program_list *program_list, yaml_event_t *event)
     {
     if(parser == NULL)
         {
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     if(program_list == NULL)
         {
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     if(event == NULL)
         {
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     struct program_specification *actual_program_specification;
@@ -347,36 +370,42 @@ uint8_t parse_config_one_program(yaml_parser_t *parser, struct program_list *pro
     cnt                          = 0;
 
     if(event->type != YAML_SCALAR_EVENT)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     if(event->data.scalar.value == NULL || event->data.scalar.length == 0)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
-    if(program_list->programs != NULL && program_list->number_of_program > 0)
+    if(program_list->program_linked_list != NULL && program_list->number_of_program > 0)
         {
-        actual_program_specification = NULL;
+        actual_program_specification = program_list->program_linked_list;
         cnt = 0;
-        while(cnt < program_list->number_of_program)
+        while(cnt < program_list->number_of_program && actual_program_specification != NULL)
             {
-            if(program_list->programs[cnt].global_status.global_status_struct_init == TRUE && program_list->programs[cnt].name_length != 0 && program_list->programs[cnt].str_name != NULL && strcmp((char *) event->data.scalar.value, (char *) program_list->programs[cnt].str_name) == 0)
+            if(actual_program_specification->global_status.global_status_struct_init == TRUE && actual_program_specification->name_length != 0 && actual_program_specification->str_name != NULL && strcmp((char *) event->data.scalar.value, (char *) actual_program_specification->str_name) == 0)
                 {
-                actual_program_specification = &(program_list->programs[cnt]);
-                if(reset_program_default_value_without_name(actual_program_specification) != RETURN_SUCCESS)
-                    return (RETURN_FAILURE);
+                if(reset_program_default_value_without_name(actual_program_specification) != EXIT_SUCCESS)
+                    return (EXIT_FAILURE);
                 actual_program_specification->global_status.global_status_configuration_reloading = TRUE;
                 break;
                 }
 
+            actual_program_specification = actual_program_specification->next_program;
             cnt++;
             }
+
+        if(cnt >= program_list->number_of_program)
+            actual_program_specification = NULL;
         }
 
     if(actual_program_specification == NULL)
         {
-        if(add_new_program(program_list, event->data.scalar.value, event->data.scalar.length) != RETURN_SUCCESS)
-            return (RETURN_FAILURE);
+        if(add_new_program(program_list, event->data.scalar.value, event->data.scalar.length) != EXIT_SUCCESS)
+            return (EXIT_FAILURE);
 
-        actual_program_specification = &(program_list->programs[program_list->number_of_program - 1]);
+        if(program_list->last_program_linked_list == NULL)
+            return (EXIT_FAILURE);
+
+        actual_program_specification = program_list->last_program_linked_list;
         }
 
     yaml_event_delete(event);
@@ -393,43 +422,43 @@ uint8_t parse_config_one_program(yaml_parser_t *parser, struct program_list *pro
         #ifdef PRODUCTION
         fprintf(stderr, "\033[1;31mERROR\033[0m\n");
         #endif
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     if(event->type != YAML_MAPPING_START_EVENT)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
-    if(parse_config_program_attribute(parser, actual_program_specification, event) != RETURN_SUCCESS)
-        return (RETURN_FAILURE);
+    if(parse_config_program_attribute(parser, actual_program_specification, event) != EXIT_SUCCESS)
+        return (EXIT_FAILURE);
 
     if(event->type != YAML_MAPPING_END_EVENT)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
-    return (RETURN_SUCCESS);
+    return (EXIT_SUCCESS);
     }
 
 /**
 * This function parse all the programs in the YAML config file
 */
-uint8_t parse_config_all_programs(yaml_parser_t *parser, struct program_list *program_list, yaml_event_t *event)
+static uint8_t parse_config_all_programs(yaml_parser_t *parser, struct program_list *program_list, yaml_event_t *event)
     {
     if(parser == NULL)
         {
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     if(program_list == NULL)
         {
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     if(event == NULL)
         {
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     if(event->type != YAML_MAPPING_START_EVENT)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     while(TRUE)
         {
@@ -447,49 +476,49 @@ uint8_t parse_config_all_programs(yaml_parser_t *parser, struct program_list *pr
             #ifdef PRODUCTION
             fprintf(stderr, "\033[1;31mERROR\033[0m\n");
             #endif
-            return (RETURN_FAILURE);
+            return (EXIT_FAILURE);
             }
 
         switch(event->type)
             {
             case(YAML_MAPPING_END_EVENT):
-                return (RETURN_SUCCESS);
+                return (EXIT_SUCCESS);
             case(YAML_SCALAR_EVENT):
                 if(event->data.scalar.value == NULL || event->data.scalar.length == 0)
-                    return (RETURN_FAILURE);
-                if(parse_config_one_program(parser, program_list, event) != RETURN_SUCCESS)
-                    return (RETURN_FAILURE);
+                    return (EXIT_FAILURE);
+                if(parse_config_one_program(parser, program_list, event) != EXIT_SUCCESS)
+                    return (EXIT_FAILURE);
                 break;
             default:
-                return (RETURN_FAILURE);
+                return (EXIT_FAILURE);
             }
         }
 
-    return (RETURN_SUCCESS);
+    return (EXIT_SUCCESS);
     }
 
 /**
 * This function parse the mapping event of the name programs in the YAML config file
 */
-uint8_t parse_config_mapping_event_programs(yaml_parser_t *parser, struct program_list *program_list, yaml_event_t *event)
+static uint8_t parse_config_mapping_event_programs(yaml_parser_t *parser, struct program_list *program_list, yaml_event_t *event)
     {
     if(parser == NULL)
         {
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     if(program_list == NULL)
         {
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     if(event == NULL)
         {
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     if(event->type != YAML_MAPPING_START_EVENT)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     yaml_event_delete(event);
     if(yaml_parser_parse(parser, event) != 1)
@@ -505,16 +534,16 @@ uint8_t parse_config_mapping_event_programs(yaml_parser_t *parser, struct progra
         #ifdef PRODUCTION
         fprintf(stderr, "\033[1;31mERROR\033[0m\n");
         #endif
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     switch(event->type)
         {
         case(YAML_MAPPING_END_EVENT):
-            return (RETURN_SUCCESS);
+            return (EXIT_SUCCESS);
         case(YAML_SCALAR_EVENT):
             if(event->data.scalar.value == NULL || event->data.scalar.length == 0 || strcmp((char *) event->data.scalar.value, PROGRAM_CATEGORY_STR) != 0)
-                return (RETURN_FAILURE);
+                return (EXIT_FAILURE);
 
             program_list->programs_loaded = TRUE;
 
@@ -532,50 +561,50 @@ uint8_t parse_config_mapping_event_programs(yaml_parser_t *parser, struct progra
                 #ifdef PRODUCTION
                 fprintf(stderr, "\033[1;31mERROR\033[0m\n");
                 #endif
-                return (RETURN_FAILURE);
+                return (EXIT_FAILURE);
                 }
 
             switch(event->type)
                 {
                 case(YAML_MAPPING_END_EVENT):
-                    return (RETURN_SUCCESS);
+                    return (EXIT_SUCCESS);
                 case(YAML_MAPPING_START_EVENT):
-                    if(parse_config_all_programs(parser, program_list, event) != RETURN_SUCCESS)
-                        return (RETURN_FAILURE);
+                    if(parse_config_all_programs(parser, program_list, event) != EXIT_SUCCESS)
+                        return (EXIT_FAILURE);
                     break;
                 default:
-                    return (RETURN_FAILURE);
+                    return (EXIT_FAILURE);
                 }
             break;
         default:
-            return (RETURN_FAILURE);
+            return (EXIT_FAILURE);
         }
 
-    return (RETURN_SUCCESS);
+    return (EXIT_SUCCESS);
     }
 
 /**
 * This function parse the document event in the YAML config file
 */
-uint8_t parse_config_document_event(yaml_parser_t *parser, struct program_list *program_list, yaml_event_t *event)
+static uint8_t parse_config_document_event(yaml_parser_t *parser, struct program_list *program_list, yaml_event_t *event)
     {
     if(parser == NULL)
         {
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     if(program_list == NULL)
         {
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     if(event == NULL)
         {
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     if(event->type != YAML_DOCUMENT_START_EVENT)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     while(program_list->programs_loaded == FALSE)
         {
@@ -593,47 +622,47 @@ uint8_t parse_config_document_event(yaml_parser_t *parser, struct program_list *
             #ifdef PRODUCTION
             fprintf(stderr, "\033[1;31mERROR\033[0m\n");
             #endif
-            return (RETURN_FAILURE);
+            return (EXIT_FAILURE);
             }
 
         switch(event->type)
             {
             case(YAML_DOCUMENT_END_EVENT):
-                return (RETURN_SUCCESS);
+                return (EXIT_SUCCESS);
             case(YAML_MAPPING_START_EVENT):
-                if(parse_config_mapping_event_programs(parser, program_list, event) != RETURN_SUCCESS)
-                    return (RETURN_FAILURE);
+                if(parse_config_mapping_event_programs(parser, program_list, event) != EXIT_SUCCESS)
+                    return (EXIT_FAILURE);
                 break;
             default:
-                return (RETURN_FAILURE);
+                return (EXIT_FAILURE);
             }
         }
 
-    return (RETURN_SUCCESS);
+    return (EXIT_SUCCESS);
     }
 
 /**
 * This function parse the stream event in the YAML config file
 */
-uint8_t parse_config_stream_event(yaml_parser_t *parser, struct program_list *program_list, yaml_event_t *event)
+static uint8_t parse_config_stream_event(yaml_parser_t *parser, struct program_list *program_list, yaml_event_t *event)
     {
     if(parser == NULL)
         {
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     if(program_list == NULL)
         {
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     if(event == NULL)
         {
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     if(event->type != YAML_STREAM_START_EVENT)
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
     yaml_event_delete(event);
     if(yaml_parser_parse(parser, event) != 1)
@@ -649,21 +678,21 @@ uint8_t parse_config_stream_event(yaml_parser_t *parser, struct program_list *pr
         #ifdef PRODUCTION
         fprintf(stderr, "\033[1;31mERROR\033[0m\n");
         #endif
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     if(event->type == YAML_STREAM_END_EVENT)
-        return (RETURN_SUCCESS);
+        return (EXIT_SUCCESS);
 
     if(event->type == YAML_DOCUMENT_START_EVENT)
         {
-        if(parse_config_document_event(parser, program_list, event) != RETURN_SUCCESS)
-            return (RETURN_FAILURE);
+        if(parse_config_document_event(parser, program_list, event) != EXIT_SUCCESS)
+            return (EXIT_FAILURE);
         }
     else
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
 
-    return (RETURN_SUCCESS);
+    return (EXIT_SUCCESS);
     }
 
 /**
@@ -673,12 +702,12 @@ uint8_t parse_config_file(uint8_t *file_name, struct program_list *program_list)
     {
     if(file_name == NULL)
         {
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     if(program_list == NULL)
         {
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     FILE          *file;
@@ -700,7 +729,7 @@ uint8_t parse_config_file(uint8_t *file_name, struct program_list *program_list)
         #ifdef PRODUCTION
         fprintf(stderr, "\033[1;31mERROR\033[0m\n");
         #endif
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     if(yaml_parser_initialize(&parser) != 1)
@@ -718,7 +747,7 @@ uint8_t parse_config_file(uint8_t *file_name, struct program_list *program_list)
         #endif
 
         fclose(file);
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     yaml_parser_set_input_file(&parser, file);
@@ -739,7 +768,7 @@ uint8_t parse_config_file(uint8_t *file_name, struct program_list *program_list)
 
         fclose(file);
         yaml_parser_delete(&parser);
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     if(event.type != YAML_STREAM_START_EVENT)
@@ -747,10 +776,10 @@ uint8_t parse_config_file(uint8_t *file_name, struct program_list *program_list)
         yaml_event_delete(&event);
         fclose(file);
         yaml_parser_delete(&parser);
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
-    if(parse_config_stream_event(&parser, program_list, &event) != RETURN_SUCCESS)
+    if(parse_config_stream_event(&parser, program_list, &event) != EXIT_SUCCESS)
         {
         #ifdef DEVELOPEMENT
         fprintf(stderr, "\033[1;31mERROR\033[0m: in file \033[1m%s\033[0m in function \033[1m%s\033[0m at line \033[1m%d\033[0m\n    The function to parse the stream event of the config file failed\n", __FILE__, __func__, __LINE__);
@@ -767,7 +796,7 @@ uint8_t parse_config_file(uint8_t *file_name, struct program_list *program_list)
         yaml_event_delete(&event);
         fclose(file);
         yaml_parser_delete(&parser);
-        return (RETURN_FAILURE);
+        return (EXIT_FAILURE);
         }
 
     yaml_event_delete(&event);
@@ -776,13 +805,13 @@ uint8_t parse_config_file(uint8_t *file_name, struct program_list *program_list)
 
     yaml_parser_delete(&parser);
 
-    return (RETURN_SUCCESS);
+    return (EXIT_SUCCESS);
     }
 
 /**
 * This function free the structure program_specification
 */
-void free_program_specification(struct program_specification *program)
+static void free_program_specification(struct program_specification *program)
     {
     if(program == NULL)
         {
@@ -848,6 +877,8 @@ void free_program_specification(struct program_specification *program)
 
     program->umask = PROGRAM_DEFAULT_UMASk;
     program->e_log = PROGRAM_DEFAULT_LOG_STATUS;
+
+    program->next_program = NULL;
     }
 
 /**
@@ -860,20 +891,190 @@ void free_program_list(struct program_list *programs)
         return;
         }
 
-    uint32_t cnt;
+    struct program_specification *actual_program;
+    uint32_t                      cnt;
 
-    cnt = 0;
+    actual_program = NULL;
+    cnt            = 0;
 
     programs->programs_loaded = FALSE;
 
     cnt = 0;
-    while(cnt < programs->number_of_program)
+    while(cnt < programs->number_of_program && programs->program_linked_list != NULL)
         {
-        free_program_specification(&(programs->programs[cnt]));
+        actual_program = programs->program_linked_list;
+
+        programs->program_linked_list = actual_program->next_program;
+
+        free_program_specification(actual_program);
+        free(actual_program);
         cnt++;
         }
 
-    free(programs->programs);
-    programs->programs = NULL;
+    free(programs->program_linked_list);
+    programs->program_linked_list = NULL;
+    programs->last_program_linked_list = NULL;
     programs->number_of_program = 0;
+    }
+
+/**
+* This function display the structure program_specification
+*/
+static void display_program_specification(struct program_specification *program)
+    {
+    if(program == NULL)
+        {
+        return;
+        }
+
+    if(program->global_status.global_status_struct_init == FALSE)
+        {
+        return;
+        }
+
+    uint32_t cnt;
+
+    cnt = 0;
+
+    if(program->global_status.global_status_struct_init == TRUE)
+        printf("The structure program specification is INIT\n");
+    else
+        printf("The structure program specification is NOT INIT\n");
+
+    if(program->global_status.global_status_conf_loaded == TRUE)
+        printf("The structure is LOADED\n");
+    else
+        printf("The structure is NOT LOADED\n");
+
+    if(program->global_status.global_status_configuration_reloading == TRUE)
+        printf("The structure is RELOADING\n");
+    else
+        printf("The structure is NOT RELOADING\n");
+
+    if(program->global_status.global_status_need_to_restart == TRUE)
+        printf("The structure need to RESTART\n");
+    else
+        printf("The structure does NOT need to RESTART\n");
+
+    printf("\n");
+
+    printf("NAME: [%s]\n", program->str_name);
+    printf("START_COMMAND: [%s]\n", program->str_start_command);
+    printf("NUMBER_OF_PROCESS: %u\n", program->number_of_process);
+    if(program->auto_start == TRUE)
+        printf("AUTO_START: TRUE\n");
+    else
+        printf("AUTO_START: FALSE\n");
+
+    switch(program->e_auto_restart)
+        {
+        case(PROGRAM_AUTO_RESTART_FALSE):
+            printf("AUTO_RESTART: FALSE\n");
+            break;
+        case(PROGRAM_AUTO_RESTART_TRUE):
+            printf("AUTO_RESTART: TRUE\n");
+            break;
+        case(PROGRAM_AUTO_RESTART_UNEXPECTED):
+            printf("AUTO_RESTART: UNEXPECTED\n");
+            break;
+        default:
+            break;
+        };
+
+    if(program->exit_codes != NULL)
+        {
+        printf("EXIT_CODE_NUMBER: %u\n", program->exit_codes_number);
+        printf("EXIT_CODE:");
+        cnt = 0;
+        while(cnt < program->exit_codes_number)
+            {
+            printf(" %u", program->exit_codes[cnt]);
+
+            cnt++;
+            }
+        printf("\n");
+        }
+
+    printf("START_TIME: %u\n", program->start_time);
+    printf("START_RETRIES: %u\n", program->start_retries);
+    printf("STOP_SIGNAL: %u\n", program->stop_signal);
+    printf("STOP_TIME: %u\n", program->stop_time);
+
+    printf("STDOUT: [%s]\n", program->str_stdout);
+    printf("STDERR: [%s]\n", program->str_stderr);
+
+    if(program->env != NULL)
+        {
+        printf("ENV:\n");
+        cnt = 0;
+        while(cnt < program->env_length)
+            {
+            if(program->env[cnt] == NULL)
+                printf("%u\tNULL\n", cnt);
+            else
+                printf("%u\t%s\n", cnt, program->env[cnt]);
+
+            cnt++;
+            }
+        }
+
+    printf("WORKING_DIRECTORY: [%s]\n", program->str_working_directory);
+    printf("UMASK: %c%c%c\n", ((program->umask >> 6) & 7) + '0', ((program->umask >> 3) & 7) + '0', (program->umask & 7) + '0');
+
+    switch(program->e_log)
+        {
+        case(PROGRAM_LOG_FALSE):
+            printf("LOG: FALSE\n");
+            break;
+        case(PROGRAM_LOG_TRUE):
+            printf("LOG: TRUE\n");
+            break;
+        case(PROGRAM_LOG_MAIL):
+            printf("LOG: UNEXPECTED\n");
+            break;
+        default:
+            break;
+        };
+
+    printf("\n");
+    if(program->next_program == NULL)
+        printf("NEXT_PROGRAM: NULL\n");
+    else
+        {
+        if(program->next_program->str_name != NULL)
+            printf("NEXT_PROGRAM: %p, [%s]\n", program->next_program, program->next_program->str_name);
+        else
+            printf("NEXT_PROGRAM: %p\n", program->next_program);
+        }
+    }
+
+/**
+* This function display the structure program_list
+*/
+void display_program_list(struct program_list *programs)
+    {
+    if(programs == NULL)
+        {
+        return;
+        }
+
+    struct program_specification *actual_program;
+    uint32_t                      cnt;
+
+    actual_program = NULL;
+    cnt            = 0;
+
+    printf("\033[1;92mPROGRAM SPECIFICATION LINKED LIST\033[0m:\n");
+    actual_program = programs->program_linked_list;
+    cnt = 0;
+    while(cnt < programs->number_of_program && actual_program != NULL)
+        {
+        printf("\n\033[1;93mPROGRAM SPECIFICATION %u\033[0m:\n\n", cnt);
+        display_program_specification(actual_program);
+
+        actual_program = actual_program->next_program;
+        cnt++;
+        }
+
+    printf("\n\033[1;92mPROGRAM SPECIFICATION LINKED LIST END\033[0m:\n");
     }
