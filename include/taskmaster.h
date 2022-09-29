@@ -4,6 +4,7 @@
 # include <fcntl.h>
 # include <inttypes.h>
 # include <limits.h>
+# include <pthread.h>
 # include <signal.h>
 # include <stdint.h>
 # include <stdio.h>
@@ -142,7 +143,16 @@ struct program_specification
 */
 struct program_list
 {
-    uint8_t                       programs_loaded;
+    struct
+        {
+        // FIRST_BIT     Structure is init          1 = Y / 0 = N
+        uint8_t global_status_struct_init             : 1;
+
+        // SECOND_BIT     Configuration is loaded          1 = Y / 0 = N
+        uint8_t global_status_conf_loaded             : 1;
+        } global_status;
+
+    pthread_mutex_t               mutex_program_linked_list;
     struct program_specification *program_linked_list;
     struct program_specification *last_program_linked_list;
     uint32_t                      number_of_program;
@@ -167,5 +177,6 @@ uint8_t program_field_log_load_function(yaml_parser_t *parser, struct program_sp
 uint8_t parse_config_file(uint8_t *file_name, struct program_list *program_list);
 void free_program_list(struct program_list *programs);
 void display_program_list(struct program_list *programs);
+uint8_t init_program_list(struct program_list *program_list);
 
 #endif

@@ -545,7 +545,7 @@ static uint8_t parse_config_mapping_event_programs(yaml_parser_t *parser, struct
             if(event->data.scalar.value == NULL || event->data.scalar.length == 0 || strcmp((char *) event->data.scalar.value, PROGRAM_CATEGORY_STR) != 0)
                 return (EXIT_FAILURE);
 
-            program_list->programs_loaded = TRUE;
+            program_list->global_status.global_status_conf_loaded = TRUE;
 
             yaml_event_delete(event);
             if(yaml_parser_parse(parser, event) != 1)
@@ -606,7 +606,7 @@ static uint8_t parse_config_document_event(yaml_parser_t *parser, struct program
     if(event->type != YAML_DOCUMENT_START_EVENT)
         return (EXIT_FAILURE);
 
-    while(program_list->programs_loaded == FALSE)
+    while(program_list->global_status.global_status_conf_loaded == FALSE)
         {
         yaml_event_delete(event);
         if(yaml_parser_parse(parser, event) != 1)
@@ -891,13 +891,16 @@ void free_program_list(struct program_list *programs)
         return;
         }
 
+    if(programs->global_status.global_status_struct_init == FALSE)
+        return;
+
     struct program_specification *actual_program;
     uint32_t                      cnt;
 
     actual_program = NULL;
     cnt            = 0;
 
-    programs->programs_loaded = FALSE;
+    programs->global_status.global_status_conf_loaded = FALSE;
 
     cnt = 0;
     while(cnt < programs->number_of_program && programs->program_linked_list != NULL)
@@ -915,6 +918,9 @@ void free_program_list(struct program_list *programs)
     programs->program_linked_list = NULL;
     programs->last_program_linked_list = NULL;
     programs->number_of_program = 0;
+
+    if(pthread_mutex_destroy(&(programs->mutex_program_linked_list)) != 0)
+        return;
     }
 
 /**
@@ -1077,4 +1083,24 @@ void display_program_list(struct program_list *programs)
         }
 
     printf("\n\033[1;92mPROGRAM SPECIFICATION LINKED LIST END\033[0m:\n");
+    }
+
+uint8_t init_program_list(struct program_list *program_list)
+    {
+    if(program_list == NULL)
+        return (EXIT_FAILURE);
+
+    if(program_list->global_status.global_status_struct_init == TRUE)
+        return (EXIT_FAILURE);
+
+    memset(&(program_list->global_status), 0, sizeof(program_list->global_status));
+
+    program_list->last_program_linked_list = NULL;
+    program_list->number_of_program        = 0;
+    program_list->program_linked_list      = NULL;
+
+    if(pthread_mutex_init(&(program_list->mutex_program_linked_list), NULL) != 0)
+        return (EXIT_FAILURE);
+
+    return (EXIT_SUCCESS);
     }
