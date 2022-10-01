@@ -24,8 +24,8 @@ CPPFLAGS := $(INC_FLAGS) -D_GNU_SOURCE -MMD -MP
 CFLAGS		:= -Wall -Wextra -Werror -fcommon
 
 ### LINK ###
-LDFLAGS		:=	-L$(LIB_DIRECTORY) -pthread
-LDLIBS := -lyaml
+LDFLAGS		:=	-L$(LIB_DIRECTORY) -pthread #-L$(LIB_FT_DIR)
+LDLIBS := -lyaml -ltermcap #-lft
 
 
 ### RULES ###

@@ -78,6 +78,7 @@ static uint8_t set_program_default_value(struct program_specification *program)
     program->str_working_directory = NULL;
     program->umask = PROGRAM_DEFAULT_UMASk;
     program->e_log = PROGRAM_DEFAULT_LOG_STATUS;
+    program->restart_tmp_program = NULL;
     program->next_program = NULL;
 
     program->exit_codes_number = 0;
@@ -163,6 +164,13 @@ static uint8_t reset_program_default_value_without_name(struct program_specifica
         return (EXIT_FAILURE);
     program->exit_codes[0] = PROGRAM_DEFAULT_EXIT_CODE;
     program->exit_codes_number = 1;
+
+    if(program->restart_tmp_program != NULL)
+        {
+        free_program_specification(program->restart_tmp_program);
+        free(program->restart_tmp_program);
+        }
+    program->restart_tmp_program = NULL;
 
     program->global_status.global_status_struct_init = TRUE;
 
@@ -339,6 +347,8 @@ static uint8_t parse_config_program_attribute(yaml_parser_t *parser, struct prog
 
     if(check_required_attribute_in_program(program) != EXIT_SUCCESS)
         return (EXIT_FAILURE);
+
+    program->global_status.global_status_conf_loaded = TRUE;
 
     return (EXIT_SUCCESS);
     }
@@ -811,7 +821,7 @@ uint8_t parse_config_file(uint8_t *file_name, struct program_list *program_list)
 /**
 * This function free the structure program_specification
 */
-static void free_program_specification(struct program_specification *program)
+void free_program_specification(struct program_specification *program)
     {
     if(program == NULL)
         {
@@ -878,18 +888,23 @@ static void free_program_specification(struct program_specification *program)
     program->umask = PROGRAM_DEFAULT_UMASk;
     program->e_log = PROGRAM_DEFAULT_LOG_STATUS;
 
+    if(program->restart_tmp_program != NULL)
+        {
+        free_program_specification(program->restart_tmp_program);
+        free(program->restart_tmp_program);
+        }
+    program->restart_tmp_program = NULL;
+
     program->next_program = NULL;
     }
 
 /**
-* This function free the structure program_list
+* This function free the linked list of structure program_specification in the structure program_list
 */
-void free_program_list(struct program_list *programs)
+void free_linked_list_in_program_list(struct program_list *programs)
     {
     if(programs == NULL)
-        {
         return;
-        }
 
     if(programs->global_status.global_status_struct_init == FALSE)
         return;
@@ -899,8 +914,6 @@ void free_program_list(struct program_list *programs)
 
     actual_program = NULL;
     cnt            = 0;
-
-    programs->global_status.global_status_conf_loaded = FALSE;
 
     cnt = 0;
     while(cnt < programs->number_of_program && programs->program_linked_list != NULL)
@@ -914,10 +927,25 @@ void free_program_list(struct program_list *programs)
         cnt++;
         }
 
-    free(programs->program_linked_list);
     programs->program_linked_list = NULL;
     programs->last_program_linked_list = NULL;
     programs->number_of_program = 0;
+    }
+
+/**
+* This function free the structure program_list
+*/
+void free_program_list(struct program_list *programs)
+    {
+    if(programs == NULL)
+        return;
+
+    if(programs->global_status.global_status_struct_init == FALSE)
+        return;
+
+    programs->global_status.global_status_conf_loaded = FALSE;
+
+    free_linked_list_in_program_list(programs);
 
     if(pthread_mutex_destroy(&(programs->mutex_program_linked_list)) != 0)
         return;
@@ -945,22 +973,43 @@ static void display_program_specification(struct program_specification *program)
     if(program->global_status.global_status_struct_init == TRUE)
         printf("The structure program specification is INIT\n");
     else
-        printf("The structure program specification is NOT INIT\n");
+        printf("The structure program specification is \033[43mNOT\033[0m INIT\n");
 
     if(program->global_status.global_status_conf_loaded == TRUE)
         printf("The structure is LOADED\n");
     else
-        printf("The structure is NOT LOADED\n");
+        printf("The structure is \033[43mNOT\033[0m LOADED\n");
 
     if(program->global_status.global_status_configuration_reloading == TRUE)
         printf("The structure is RELOADING\n");
     else
-        printf("The structure is NOT RELOADING\n");
+        printf("The structure is \033[43mNOT\033[0m RELOADING\n");
 
     if(program->global_status.global_status_need_to_restart == TRUE)
-        printf("The structure need to RESTART\n");
+        printf("The program need to RESTART\n");
     else
-        printf("The structure does NOT need to RESTART\n");
+        printf("The program does \033[43mNOT\033[0m need to RESTART\n");
+
+    if(program->global_status.global_status_need_to_stop == TRUE)
+        printf("The program need to STOP\n");
+    else
+        printf("The program does \033[43mNOT\033[0m need to STOP\n");
+
+    if(program->global_status.global_status_need_to_start == TRUE)
+        printf("The program need to START\n");
+    else
+        printf("The program does \033[43mNOT\033[0m need to START\n");
+
+    if(program->global_status.global_status_need_to_remove == TRUE)
+        printf("The program need to be REMOVED\n");
+    else
+        printf("The program does \033[43mNOT\033[0m need to be REMOVED\n");
+
+    if(program->global_status.global_status_started == TRUE)
+        printf("The program is STARTED\n");
+    else
+        printf("The program is \033[43mNOT\033[0m STARTED\n");
+
 
     printf("\n");
 
@@ -1042,6 +1091,17 @@ static void display_program_specification(struct program_specification *program)
             break;
         };
 
+    if(program->restart_tmp_program == NULL)
+        {
+        printf("\nRESTART_TMP_PROGRAM: NULL\n");
+        }
+    else
+        {
+        printf("\n\033[1;95mRESTART TEMPORARY PROGRAM SPECIFICATION\033[0m: %p\n\n", program->restart_tmp_program);
+        display_program_specification(program->restart_tmp_program);
+        printf("\033[1;95mRESTART TEMPORARY PROGRAM SPECIFICATION FIN\033[0m\n");
+        }
+
     printf("\n");
     if(program->next_program == NULL)
         printf("NEXT_PROGRAM: NULL\n");
@@ -1085,6 +1145,9 @@ void display_program_list(struct program_list *programs)
     printf("\n\033[1;92mPROGRAM SPECIFICATION LINKED LIST END\033[0m:\n");
     }
 
+/**
+* This function init the structure program_list
+*/
 uint8_t init_program_list(struct program_list *program_list)
     {
     if(program_list == NULL)
@@ -1101,6 +1164,8 @@ uint8_t init_program_list(struct program_list *program_list)
 
     if(pthread_mutex_init(&(program_list->mutex_program_linked_list), NULL) != 0)
         return (EXIT_FAILURE);
+
+    program_list->global_status.global_status_struct_init = TRUE;
 
     return (EXIT_SUCCESS);
     }

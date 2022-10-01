@@ -11,6 +11,7 @@
 # include <stdlib.h>
 # include <string.h>
 # include <unistd.h>
+# include <term.h>
 # include "yaml.h"
 
 # define FALSE (0)
@@ -57,6 +58,8 @@ enum program_auto_restart_status
 # define PROGRAM_DEFAULT_LOG_STATUS (PROGRAM_LOG_TRUE)
 # define PROGRAM_DEFAULT_UMASk (S_IWOTH | S_IWGRP)
 # define PROGRAM_DEFAULT_EXIT_CODE (0)
+
+# define SHELL_PROMPT ("$> ")
 
 /**
 * This enumeration represente all the posible attribute in the structure program_specification
@@ -110,6 +113,18 @@ struct program_specification
 
         // FOURTH_BIT     Need to restart            1 = Y / 0 = N
         uint8_t global_status_need_to_restart         : 1;
+
+        //                Need to stop               1 = Y / 0 = N
+        uint8_t global_status_need_to_stop            : 1;
+
+        //                Need to start              1 = Y / 0 = N
+        uint8_t global_status_need_to_start           : 1;
+
+        //                Need to remove             1 = Y / 0 = N
+        uint8_t global_status_need_to_remove          : 1;
+
+        //                Started                    1 = Y / 0 = N
+        uint8_t global_status_started                 : 1;
         } global_status;
 
     uint8_t                          *str_name;
@@ -132,6 +147,8 @@ struct program_specification
     mode_t                            umask;                    // 13. An umask to set before launching the program
     enum program_log_status           e_log;                    // 3.  More advanced logging/reporting facilities (Alerts via email/http/syslog/etc...)
 
+    struct program_specification *restart_tmp_program;
+
     /**
     * Linked list
     */
@@ -148,7 +165,7 @@ struct program_list
         // FIRST_BIT     Structure is init          1 = Y / 0 = N
         uint8_t global_status_struct_init             : 1;
 
-        // SECOND_BIT     Configuration is loaded          1 = Y / 0 = N
+        // SECOND_BIT     Configuration is loaded   1 = Y / 0 = N
         uint8_t global_status_conf_loaded             : 1;
         } global_status;
 
@@ -156,6 +173,20 @@ struct program_list
     struct program_specification *program_linked_list;
     struct program_specification *last_program_linked_list;
     uint32_t                      number_of_program;
+};
+
+struct taskmaster
+{
+    struct
+        {
+        // FIRST_BIT     Structure is init          1 = Y / 0 = N
+        uint8_t global_status_struct_init             : 1;
+        } global_status;
+
+    struct program_list   programs;
+
+    struct termios  termios;
+    struct termios  termios_save;
 };
 
 uint8_t program_field_cmd_load_function(yaml_parser_t *parser, struct program_specification *program, yaml_event_t *event);
@@ -174,9 +205,12 @@ uint8_t program_field_workingdir_load_function(yaml_parser_t *parser, struct pro
 uint8_t program_field_umask_load_function(yaml_parser_t *parser, struct program_specification *program, yaml_event_t *event);
 uint8_t program_field_log_load_function(yaml_parser_t *parser, struct program_specification *program, yaml_event_t *event);
 
-uint8_t parse_config_file(uint8_t *file_name, struct program_list *program_list);
-void free_program_list(struct program_list *programs);
-void display_program_list(struct program_list *programs);
 uint8_t init_program_list(struct program_list *program_list);
+uint8_t parse_config_file(uint8_t *file_name, struct program_list *program_list);
+uint8_t reload_config_file(uint8_t *file_name, struct program_list *program_list);
+void display_program_list(struct program_list *programs);
+void free_linked_list_in_program_list(struct program_list *programs);
+void free_program_list(struct program_list *programs);
+void free_program_specification(struct program_specification *program);
 
 #endif
