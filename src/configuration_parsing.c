@@ -1,5 +1,33 @@
 #include "taskmaster.h"
 
+static void err_display(const char *msg, const char *file, const char *func,
+			uint32_t line) {
+#ifdef DEVELOPEMENT
+  fprintf(stderr,
+	  "" BRED "ERROR" CRESET ": in file " BWHT "%s" CRESET
+	  " in function " BWHT "%s" CRESET " at line " BWHT "%d" CRESET
+	  "\n    %s\n",
+	  file, func, line, msg);
+#endif
+
+#ifdef DEMO
+  fprintf(stderr,
+	  "" BRED "ERROR" CRESET ": in file " BWHT "%s" CRESET " at line " BWHT
+	  "%s" CRESET "\n",
+	  file, line);
+#endif
+
+#ifdef PRODUCTION
+  fprintf(stderr, "" BRED "ERROR" CRESET "\n");
+#endif
+}
+
+#define log_error(msg, file, func, line) \
+  do {                                      \
+    err_display(msg, file, func, line);     \
+    return (EXIT_FAILURE);                  \
+  } while (0)
+
 /**
 * This array correspond to all the possible attribut name for a program in the YAML config file
 */
@@ -307,20 +335,8 @@ static uint8_t parse_config_program_attribute(yaml_parser_t *parser, struct prog
         {
         yaml_event_delete(event);
         if(yaml_parser_parse(parser, event) != 1)
-            {
-            #ifdef DEVELOPEMENT
-            fprintf(stderr, "\033[1;31mERROR\033[0m: in file \033[1m%s\033[0m in function \033[1m%s\033[0m at line \033[1m%d\033[0m\n    The function to parse the YAML config file failed\n", __FILE__, __func__, __LINE__);
-            #endif
-
-            #ifdef DEMO
-            fprintf(stderr, "\033[1;31mERROR\033[0m: in file \033[1m%s\033[0m at line \033[1m%s\033[0m\n", __FILE__, __LINE__);
-            #endif
-
-            #ifdef PRODUCTION
-            fprintf(stderr, "\033[1;31mERROR\033[0m\n");
-            #endif
-            return (EXIT_FAILURE);
-            }
+            log_error("The function to parse the YAML config file failed",
+                    __FILE__, __func__, __LINE__);
 
         if(event->type == YAML_MAPPING_END_EVENT)
             break;
@@ -420,20 +436,8 @@ static uint8_t parse_config_one_program(yaml_parser_t *parser, struct program_li
 
     yaml_event_delete(event);
     if(yaml_parser_parse(parser, event) != 1)
-        {
-        #ifdef DEVELOPEMENT
-        fprintf(stderr, "\033[1;31mERROR\033[0m: in file \033[1m%s\033[0m in function \033[1m%s\033[0m at line \033[1m%d\033[0m\n    The function to parse the YAML config file failed\n", __FILE__, __func__, __LINE__);
-        #endif
-
-        #ifdef DEMO
-        fprintf(stderr, "\033[1;31mERROR\033[0m: in file \033[1m%s\033[0m at line \033[1m%s\033[0m\n", __FILE__, __LINE__);
-        #endif
-
-        #ifdef PRODUCTION
-        fprintf(stderr, "\033[1;31mERROR\033[0m\n");
-        #endif
-        return (EXIT_FAILURE);
-        }
+        log_error("The function to parse the YAML config file failed",
+                __FILE__, __func__, __LINE__);
 
     if(event->type != YAML_MAPPING_START_EVENT)
         return (EXIT_FAILURE);
@@ -474,20 +478,8 @@ static uint8_t parse_config_all_programs(yaml_parser_t *parser, struct program_l
         {
         yaml_event_delete(event);
         if(yaml_parser_parse(parser, event) != 1)
-            {
-            #ifdef DEVELOPEMENT
-            fprintf(stderr, "\033[1;31mERROR\033[0m: in file \033[1m%s\033[0m in function \033[1m%s\033[0m at line \033[1m%d\033[0m\n    The function to parse the YAML config file failed\n", __FILE__, __func__, __LINE__);
-            #endif
-
-            #ifdef DEMO
-            fprintf(stderr, "\033[1;31mERROR\033[0m: in file \033[1m%s\033[0m at line \033[1m%s\033[0m\n", __FILE__, __LINE__);
-            #endif
-
-            #ifdef PRODUCTION
-            fprintf(stderr, "\033[1;31mERROR\033[0m\n");
-            #endif
-            return (EXIT_FAILURE);
-            }
+            log_error("The function to parse the YAML config file failed",
+                    __FILE__, __func__, __LINE__);
 
         switch(event->type)
             {
@@ -532,20 +524,8 @@ static uint8_t parse_config_mapping_event_programs(yaml_parser_t *parser, struct
 
     yaml_event_delete(event);
     if(yaml_parser_parse(parser, event) != 1)
-        {
-        #ifdef DEVELOPEMENT
-        fprintf(stderr, "\033[1;31mERROR\033[0m: in file \033[1m%s\033[0m in function \033[1m%s\033[0m at line \033[1m%d\033[0m\n    The function to parse the YAML config file failed\n", __FILE__, __func__, __LINE__);
-        #endif
-
-        #ifdef DEMO
-        fprintf(stderr, "\033[1;31mERROR\033[0m: in file \033[1m%s\033[0m at line \033[1m%s\033[0m\n", __FILE__, __LINE__);
-        #endif
-
-        #ifdef PRODUCTION
-        fprintf(stderr, "\033[1;31mERROR\033[0m\n");
-        #endif
-        return (EXIT_FAILURE);
-        }
+        log_error("The function to parse the YAML config file failed",
+                __FILE__, __func__, __LINE__);
 
     switch(event->type)
         {
@@ -559,20 +539,8 @@ static uint8_t parse_config_mapping_event_programs(yaml_parser_t *parser, struct
 
             yaml_event_delete(event);
             if(yaml_parser_parse(parser, event) != 1)
-                {
-                #ifdef DEVELOPEMENT
-                fprintf(stderr, "\033[1;31mERROR\033[0m: in file \033[1m%s\033[0m in function \033[1m%s\033[0m at line \033[1m%d\033[0m\n    The function to parse the YAML config file failed\n", __FILE__, __func__, __LINE__);
-                #endif
-
-                #ifdef DEMO
-                fprintf(stderr, "\033[1;31mERROR\033[0m: in file \033[1m%s\033[0m at line \033[1m%s\033[0m\n", __FILE__, __LINE__);
-                #endif
-
-                #ifdef PRODUCTION
-                fprintf(stderr, "\033[1;31mERROR\033[0m\n");
-                #endif
-                return (EXIT_FAILURE);
-                }
+                log_error("The function to parse the YAML config file failed",
+                        __FILE__, __func__, __LINE__);
 
             switch(event->type)
                 {
@@ -620,20 +588,8 @@ static uint8_t parse_config_document_event(yaml_parser_t *parser, struct program
         {
         yaml_event_delete(event);
         if(yaml_parser_parse(parser, event) != 1)
-            {
-            #ifdef DEVELOPEMENT
-            fprintf(stderr, "\033[1;31mERROR\033[0m: in file \033[1m%s\033[0m in function \033[1m%s\033[0m at line \033[1m%d\033[0m\n    The function to parse the YAML config file failed\n", __FILE__, __func__, __LINE__);
-            #endif
-
-            #ifdef DEMO
-            fprintf(stderr, "\033[1;31mERROR\033[0m: in file \033[1m%s\033[0m at line \033[1m%s\033[0m\n", __FILE__, __LINE__);
-            #endif
-
-            #ifdef PRODUCTION
-            fprintf(stderr, "\033[1;31mERROR\033[0m\n");
-            #endif
-            return (EXIT_FAILURE);
-            }
+            log_error("The function to parse the YAML config file failed",
+                    __FILE__, __func__, __LINE__);
 
         switch(event->type)
             {
@@ -676,20 +632,8 @@ static uint8_t parse_config_stream_event(yaml_parser_t *parser, struct program_l
 
     yaml_event_delete(event);
     if(yaml_parser_parse(parser, event) != 1)
-        {
-        #ifdef DEVELOPEMENT
-        fprintf(stderr, "\033[1;31mERROR\033[0m: in file \033[1m%s\033[0m in function \033[1m%s\033[0m at line \033[1m%d\033[0m\n    The function to parse the YAML config file failed\n", __FILE__, __func__, __LINE__);
-        #endif
-
-        #ifdef DEMO
-        fprintf(stderr, "\033[1;31mERROR\033[0m: in file \033[1m%s\033[0m at line \033[1m%s\033[0m\n", __FILE__, __LINE__);
-        #endif
-
-        #ifdef PRODUCTION
-        fprintf(stderr, "\033[1;31mERROR\033[0m\n");
-        #endif
-        return (EXIT_FAILURE);
-        }
+        log_error("The function to parse the YAML config file failed",
+                __FILE__, __func__, __LINE__);
 
     if(event->type == YAML_STREAM_END_EVENT)
         return (EXIT_SUCCESS);
@@ -727,86 +671,41 @@ uint8_t parse_config_file(uint8_t *file_name, struct program_list *program_list)
     file = NULL;
     file = fopen((char *) file_name, "r");
     if(file == NULL)
-        {
-        #ifdef DEVELOPEMENT
-        fprintf(stderr, "\033[1;31mERROR\033[0m: in file \033[1m%s\033[0m in function \033[1m%s\033[0m at line \033[1m%d\033[0m\n    The config file can not be opened\n", __FILE__, __func__, __LINE__);
-        #endif
-
-        #ifdef DEMO
-        fprintf(stderr, "\033[1;31mERROR\033[0m: in file \033[1m%s\033[0m at line \033[1m%s\033[0m\n", __FILE__, __LINE__);
-        #endif
-
-        #ifdef PRODUCTION
-        fprintf(stderr, "\033[1;31mERROR\033[0m\n");
-        #endif
-        return (EXIT_FAILURE);
-        }
+        log_error("The config file can not be opened\n",
+                __FILE__, __func__, __LINE__);
 
     if(yaml_parser_initialize(&parser) != 1)
         {
-        #ifdef DEVELOPEMENT
-        fprintf(stderr, "\033[1;31mERROR\033[0m: in file \033[1m%s\033[0m in function \033[1m%s\033[0m at line \033[1m%d\033[0m\n    The function to initialize the YAML parser failed\n", __FILE__, __func__, __LINE__);
-        #endif
-
-        #ifdef DEMO
-        fprintf(stderr, "\033[1;31mERROR\033[0m: in file \033[1m%s\033[0m at line \033[1m%s\033[0m\n", __FILE__, __LINE__);
-        #endif
-
-        #ifdef PRODUCTION
-        fprintf(stderr, "\033[1;31mERROR\033[0m\n");
-        #endif
-
-        fclose(file);
-        return (EXIT_FAILURE);
+            fclose(file);
+            log_error("The function to initialize the YAML parser failed",
+                    __FILE__, __func__, __LINE__);
         }
 
     yaml_parser_set_input_file(&parser, file);
 
     if(yaml_parser_parse(&parser, &event) != 1)
         {
-        #ifdef DEVELOPEMENT
-        fprintf(stderr, "\033[1;31mERROR\033[0m: in file \033[1m%s\033[0m in function \033[1m%s\033[0m at line \033[1m%d\033[0m\n    The function to parse the YAML config file failed\n", __FILE__, __func__, __LINE__);
-        #endif
-
-        #ifdef DEMO
-        fprintf(stderr, "\033[1;31mERROR\033[0m: in file \033[1m%s\033[0m at line \033[1m%s\033[0m\n", __FILE__, __LINE__);
-        #endif
-
-        #ifdef PRODUCTION
-        fprintf(stderr, "\033[1;31mERROR\033[0m\n");
-        #endif
-
-        fclose(file);
-        yaml_parser_delete(&parser);
-        return (EXIT_FAILURE);
+            fclose(file);
+            yaml_parser_delete(&parser);
+            log_error("The function to parse the YAML config file failed",
+                    __FILE__, __func__, __LINE__);
         }
 
     if(event.type != YAML_STREAM_START_EVENT)
         {
-        yaml_event_delete(&event);
-        fclose(file);
-        yaml_parser_delete(&parser);
-        return (EXIT_FAILURE);
+            yaml_event_delete(&event);
+            fclose(file);
+            yaml_parser_delete(&parser);
+            return (EXIT_FAILURE);
         }
 
     if(parse_config_stream_event(&parser, program_list, &event) != EXIT_SUCCESS)
         {
-        #ifdef DEVELOPEMENT
-        fprintf(stderr, "\033[1;31mERROR\033[0m: in file \033[1m%s\033[0m in function \033[1m%s\033[0m at line \033[1m%d\033[0m\n    The function to parse the stream event of the config file failed\n", __FILE__, __func__, __LINE__);
-        #endif
-
-        #ifdef DEMO
-        fprintf(stderr, "\033[1;31mERROR\033[0m: in file \033[1m%s\033[0m at line \033[1m%s\033[0m\n", __FILE__, __LINE__);
-        #endif
-
-        #ifdef PRODUCTION
-        fprintf(stderr, "\033[1;31mERROR\033[0m\n");
-        #endif
-
-        yaml_event_delete(&event);
-        fclose(file);
-        yaml_parser_delete(&parser);
-        return (EXIT_FAILURE);
+            yaml_event_delete(&event);
+            fclose(file);
+            yaml_parser_delete(&parser);
+            log_error("The function to parse the stream event of the config file failed",
+                    __FILE__, __func__, __LINE__);
         }
 
     yaml_event_delete(&event);
@@ -973,42 +872,42 @@ static void display_program_specification(struct program_specification *program)
     if(program->global_status.global_status_struct_init == TRUE)
         printf("The structure program specification is INIT\n");
     else
-        printf("The structure program specification is \033[43mNOT\033[0m INIT\n");
+        printf("The structure program specification is "YELB"NOT"CRESET" INIT\n");
 
     if(program->global_status.global_status_conf_loaded == TRUE)
         printf("The structure is LOADED\n");
     else
-        printf("The structure is \033[43mNOT\033[0m LOADED\n");
+        printf("The structure is "YELB"NOT"CRESET" LOADED\n");
 
     if(program->global_status.global_status_configuration_reloading == TRUE)
         printf("The structure is RELOADING\n");
     else
-        printf("The structure is \033[43mNOT\033[0m RELOADING\n");
+        printf("The structure is "YELB"NOT"CRESET" RELOADING\n");
 
     if(program->global_status.global_status_need_to_restart == TRUE)
         printf("The program need to RESTART\n");
     else
-        printf("The program does \033[43mNOT\033[0m need to RESTART\n");
+        printf("The program does "YELB"NOT"CRESET" need to RESTART\n");
 
     if(program->global_status.global_status_need_to_stop == TRUE)
         printf("The program need to STOP\n");
     else
-        printf("The program does \033[43mNOT\033[0m need to STOP\n");
+        printf("The program does "YELB"NOT"CRESET" need to STOP\n");
 
     if(program->global_status.global_status_need_to_start == TRUE)
         printf("The program need to START\n");
     else
-        printf("The program does \033[43mNOT\033[0m need to START\n");
+        printf("The program does "YELB"NOT"CRESET" need to START\n");
 
     if(program->global_status.global_status_need_to_remove == TRUE)
         printf("The program need to be REMOVED\n");
     else
-        printf("The program does \033[43mNOT\033[0m need to be REMOVED\n");
+        printf("The program does "YELB"NOT"CRESET" need to be REMOVED\n");
 
     if(program->global_status.global_status_started == TRUE)
         printf("The program is STARTED\n");
     else
-        printf("The program is \033[43mNOT\033[0m STARTED\n");
+        printf("The program is "YELB"NOT"CRESET" STARTED\n");
 
 
     printf("\n");
@@ -1097,9 +996,9 @@ static void display_program_specification(struct program_specification *program)
         }
     else
         {
-        printf("\n\033[1;95mRESTART TEMPORARY PROGRAM SPECIFICATION\033[0m: %p\n\n", program->restart_tmp_program);
+        printf("\n"BHMAG"RESTART TEMPORARY PROGRAM SPECIFICATION"CRESET": %p\n\n", program->restart_tmp_program);
         display_program_specification(program->restart_tmp_program);
-        printf("\033[1;95mRESTART TEMPORARY PROGRAM SPECIFICATION FIN\033[0m\n");
+        printf(""BHMAG"RESTART TEMPORARY PROGRAM SPECIFICATION FIN"CRESET"\n");
         }
 
     printf("\n");
@@ -1130,19 +1029,19 @@ void display_program_list(struct program_list *programs)
     actual_program = NULL;
     cnt            = 0;
 
-    printf("\033[1;92mPROGRAM SPECIFICATION LINKED LIST\033[0m:\n");
+    printf(""BHGRN"PROGRAM SPECIFICATION LINKED LIST"CRESET":\n");
     actual_program = programs->program_linked_list;
     cnt = 0;
     while(cnt < programs->number_of_program && actual_program != NULL)
         {
-        printf("\n\033[1;93mPROGRAM SPECIFICATION %u\033[0m:\n\n", cnt);
+        printf("\n"BHYEL"PROGRAM SPECIFICATION %u"CRESET":\n\n", cnt);
         display_program_specification(actual_program);
 
         actual_program = actual_program->next_program;
         cnt++;
         }
 
-    printf("\n\033[1;92mPROGRAM SPECIFICATION LINKED LIST END\033[0m:\n");
+    printf("\n"BHGRN"PROGRAM SPECIFICATION LINKED LIST END"CRESET":\n");
     }
 
 /**

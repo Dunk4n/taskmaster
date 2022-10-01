@@ -13,6 +13,7 @@
 # include <unistd.h>
 # include <term.h>
 # include "yaml.h"
+# include "ANSI_color_codes.h"
 
 # define FALSE (0)
 # define TRUE (1)
@@ -149,9 +150,19 @@ struct program_specification
 
     struct program_specification *restart_tmp_program;
 
-    /**
-    * Linked list
+    /* array of runtime data relative to each thread, the thread can access
+    ** to its related data thru its rid which is its index also
     */
+    struct thread_data {
+      	uint32_t rid; /* rank id of current thread/process */
+      	pthread_t tid; /* thread id of current thread */
+      	uint32_t pid; /* pid of current process */
+        /* how many time the process can be restarted */
+      	uint16_t restart_counter;
+      	uint8_t exit_status; /* value of exit from the current process */
+    } *launch_thread; /* array of thread_data */
+
+    /* Linked list */
     struct program_specification *next_program;
 };
 
