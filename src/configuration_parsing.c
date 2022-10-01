@@ -1,5 +1,33 @@
 #include "taskmaster.h"
 
+static void err_display(const char *msg, const char *file, const char *func,
+			uint32_t line) {
+#ifdef DEVELOPEMENT
+  fprintf(stderr,
+	  "" BRED "ERROR" CRESET ": in file " BWHT "%s" CRESET
+	  " in function " BWHT "%s" CRESET " at line " BWHT "%d" CRESET
+	  "\n    %s\n",
+	  file, func, line, msg);
+#endif
+
+#ifdef DEMO
+  fprintf(stderr,
+	  "" BRED "ERROR" CRESET ": in file " BWHT "%s" CRESET " at line " BWHT
+	  "%s" CRESET "\n",
+	  file, line);
+#endif
+
+#ifdef PRODUCTION
+  fprintf(stderr, "" BRED "ERROR" CRESET "\n");
+#endif
+}
+
+#define log_error(msg, file, func, line) \
+  do {                                      \
+    err_display(msg, file, func, line);     \
+    return (EXIT_FAILURE);                  \
+  } while (0)
+
 /**
 * This array correspond to all the possible attribut name for a program in the YAML config file
 */
@@ -307,20 +335,8 @@ static uint8_t parse_config_program_attribute(yaml_parser_t *parser, struct prog
         {
         yaml_event_delete(event);
         if(yaml_parser_parse(parser, event) != 1)
-            {
-            #ifdef DEVELOPEMENT
-            fprintf(stderr, ""BRED"ERROR"CRESET": in file "BWHT"%s"CRESET" in function "BWHT"%s"CRESET" at line "BWHT"%d"CRESET"\n    The function to parse the YAML config file failed\n", __FILE__, __func__, __LINE__);
-            #endif
-
-            #ifdef DEMO
-            fprintf(stderr, ""BRED"ERROR"CRESET": in file "BWHT"%s"CRESET" at line "BWHT"%s"CRESET"\n", __FILE__, __LINE__);
-            #endif
-
-            #ifdef PRODUCTION
-            fprintf(stderr, ""BRED"ERROR"CRESET"\n");
-            #endif
-            return (EXIT_FAILURE);
-            }
+            log_error("The function to parse the YAML config file failed",
+                    __FILE__, __func__, __LINE__);
 
         if(event->type == YAML_MAPPING_END_EVENT)
             break;
@@ -420,20 +436,8 @@ static uint8_t parse_config_one_program(yaml_parser_t *parser, struct program_li
 
     yaml_event_delete(event);
     if(yaml_parser_parse(parser, event) != 1)
-        {
-        #ifdef DEVELOPEMENT
-        fprintf(stderr, ""BRED"ERROR"CRESET": in file "BWHT"%s"CRESET" in function "BWHT"%s"CRESET" at line "BWHT"%d"CRESET"\n    The function to parse the YAML config file failed\n", __FILE__, __func__, __LINE__);
-        #endif
-
-        #ifdef DEMO
-        fprintf(stderr, ""BRED"ERROR"CRESET": in file "BWHT"%s"CRESET" at line "BWHT"%s"CRESET"\n", __FILE__, __LINE__);
-        #endif
-
-        #ifdef PRODUCTION
-        fprintf(stderr, ""BRED"ERROR"CRESET"\n");
-        #endif
-        return (EXIT_FAILURE);
-        }
+        log_error("The function to parse the YAML config file failed",
+                __FILE__, __func__, __LINE__);
 
     if(event->type != YAML_MAPPING_START_EVENT)
         return (EXIT_FAILURE);
@@ -474,20 +478,8 @@ static uint8_t parse_config_all_programs(yaml_parser_t *parser, struct program_l
         {
         yaml_event_delete(event);
         if(yaml_parser_parse(parser, event) != 1)
-            {
-            #ifdef DEVELOPEMENT
-            fprintf(stderr, ""BRED"ERROR"CRESET": in file "BWHT"%s"CRESET" in function "BWHT"%s"CRESET" at line "BWHT"%d"CRESET"\n    The function to parse the YAML config file failed\n", __FILE__, __func__, __LINE__);
-            #endif
-
-            #ifdef DEMO
-            fprintf(stderr, ""BRED"ERROR"CRESET": in file "BWHT"%s"CRESET" at line "BWHT"%s"CRESET"\n", __FILE__, __LINE__);
-            #endif
-
-            #ifdef PRODUCTION
-            fprintf(stderr, ""BRED"ERROR"CRESET"\n");
-            #endif
-            return (EXIT_FAILURE);
-            }
+            log_error("The function to parse the YAML config file failed",
+                    __FILE__, __func__, __LINE__);
 
         switch(event->type)
             {
@@ -532,20 +524,8 @@ static uint8_t parse_config_mapping_event_programs(yaml_parser_t *parser, struct
 
     yaml_event_delete(event);
     if(yaml_parser_parse(parser, event) != 1)
-        {
-        #ifdef DEVELOPEMENT
-        fprintf(stderr, ""BRED"ERROR"CRESET": in file "BWHT"%s"CRESET" in function "BWHT"%s"CRESET" at line "BWHT"%d"CRESET"\n    The function to parse the YAML config file failed\n", __FILE__, __func__, __LINE__);
-        #endif
-
-        #ifdef DEMO
-        fprintf(stderr, ""BRED"ERROR"CRESET": in file "BWHT"%s"CRESET" at line "BWHT"%s"CRESET"\n", __FILE__, __LINE__);
-        #endif
-
-        #ifdef PRODUCTION
-        fprintf(stderr, ""BRED"ERROR"CRESET"\n");
-        #endif
-        return (EXIT_FAILURE);
-        }
+        log_error("The function to parse the YAML config file failed",
+                __FILE__, __func__, __LINE__);
 
     switch(event->type)
         {
@@ -559,20 +539,8 @@ static uint8_t parse_config_mapping_event_programs(yaml_parser_t *parser, struct
 
             yaml_event_delete(event);
             if(yaml_parser_parse(parser, event) != 1)
-                {
-                #ifdef DEVELOPEMENT
-                fprintf(stderr, ""BRED"ERROR"CRESET": in file "BWHT"%s"CRESET" in function "BWHT"%s"CRESET" at line "BWHT"%d"CRESET"\n    The function to parse the YAML config file failed\n", __FILE__, __func__, __LINE__);
-                #endif
-
-                #ifdef DEMO
-                fprintf(stderr, ""BRED"ERROR"CRESET": in file "BWHT"%s"CRESET" at line "BWHT"%s"CRESET"\n", __FILE__, __LINE__);
-                #endif
-
-                #ifdef PRODUCTION
-                fprintf(stderr, ""BRED"ERROR"CRESET"\n");
-                #endif
-                return (EXIT_FAILURE);
-                }
+                log_error("The function to parse the YAML config file failed",
+                        __FILE__, __func__, __LINE__);
 
             switch(event->type)
                 {
@@ -620,20 +588,8 @@ static uint8_t parse_config_document_event(yaml_parser_t *parser, struct program
         {
         yaml_event_delete(event);
         if(yaml_parser_parse(parser, event) != 1)
-            {
-            #ifdef DEVELOPEMENT
-            fprintf(stderr, ""BRED"ERROR"CRESET": in file "BWHT"%s"CRESET" in function "BWHT"%s"CRESET" at line "BWHT"%d"CRESET"\n    The function to parse the YAML config file failed\n", __FILE__, __func__, __LINE__);
-            #endif
-
-            #ifdef DEMO
-            fprintf(stderr, ""BRED"ERROR"CRESET": in file "BWHT"%s"CRESET" at line "BWHT"%s"CRESET"\n", __FILE__, __LINE__);
-            #endif
-
-            #ifdef PRODUCTION
-            fprintf(stderr, ""BRED"ERROR"CRESET"\n");
-            #endif
-            return (EXIT_FAILURE);
-            }
+            log_error("The function to parse the YAML config file failed",
+                    __FILE__, __func__, __LINE__);
 
         switch(event->type)
             {
@@ -676,20 +632,8 @@ static uint8_t parse_config_stream_event(yaml_parser_t *parser, struct program_l
 
     yaml_event_delete(event);
     if(yaml_parser_parse(parser, event) != 1)
-        {
-        #ifdef DEVELOPEMENT
-        fprintf(stderr, ""BRED"ERROR"CRESET": in file "BWHT"%s"CRESET" in function "BWHT"%s"CRESET" at line "BWHT"%d"CRESET"\n    The function to parse the YAML config file failed\n", __FILE__, __func__, __LINE__);
-        #endif
-
-        #ifdef DEMO
-        fprintf(stderr, ""BRED"ERROR"CRESET": in file "BWHT"%s"CRESET" at line "BWHT"%s"CRESET"\n", __FILE__, __LINE__);
-        #endif
-
-        #ifdef PRODUCTION
-        fprintf(stderr, ""BRED"ERROR"CRESET"\n");
-        #endif
-        return (EXIT_FAILURE);
-        }
+        log_error("The function to parse the YAML config file failed",
+                __FILE__, __func__, __LINE__);
 
     if(event->type == YAML_STREAM_END_EVENT)
         return (EXIT_SUCCESS);
@@ -727,86 +671,41 @@ uint8_t parse_config_file(uint8_t *file_name, struct program_list *program_list)
     file = NULL;
     file = fopen((char *) file_name, "r");
     if(file == NULL)
-        {
-        #ifdef DEVELOPEMENT
-        fprintf(stderr, ""BRED"ERROR"CRESET": in file "BWHT"%s"CRESET" in function "BWHT"%s"CRESET" at line "BWHT"%d"CRESET"\n    The config file can not be opened\n", __FILE__, __func__, __LINE__);
-        #endif
-
-        #ifdef DEMO
-        fprintf(stderr, ""BRED"ERROR"CRESET": in file "BWHT"%s"CRESET" at line "BWHT"%s"CRESET"\n", __FILE__, __LINE__);
-        #endif
-
-        #ifdef PRODUCTION
-        fprintf(stderr, ""BRED"ERROR"CRESET"\n");
-        #endif
-        return (EXIT_FAILURE);
-        }
+        log_error("The config file can not be opened\n",
+                __FILE__, __func__, __LINE__);
 
     if(yaml_parser_initialize(&parser) != 1)
         {
-        #ifdef DEVELOPEMENT
-        fprintf(stderr, ""BRED"ERROR"CRESET": in file "BWHT"%s"CRESET" in function "BWHT"%s"CRESET" at line "BWHT"%d"CRESET"\n    The function to initialize the YAML parser failed\n", __FILE__, __func__, __LINE__);
-        #endif
-
-        #ifdef DEMO
-        fprintf(stderr, ""BRED"ERROR"CRESET": in file "BWHT"%s"CRESET" at line "BWHT"%s"CRESET"\n", __FILE__, __LINE__);
-        #endif
-
-        #ifdef PRODUCTION
-        fprintf(stderr, ""BRED"ERROR"CRESET"\n");
-        #endif
-
-        fclose(file);
-        return (EXIT_FAILURE);
+            fclose(file);
+            log_error("The function to initialize the YAML parser failed",
+                    __FILE__, __func__, __LINE__);
         }
 
     yaml_parser_set_input_file(&parser, file);
 
     if(yaml_parser_parse(&parser, &event) != 1)
         {
-        #ifdef DEVELOPEMENT
-        fprintf(stderr, ""BRED"ERROR"CRESET": in file "BWHT"%s"CRESET" in function "BWHT"%s"CRESET" at line "BWHT"%d"CRESET"\n    The function to parse the YAML config file failed\n", __FILE__, __func__, __LINE__);
-        #endif
-
-        #ifdef DEMO
-        fprintf(stderr, ""BRED"ERROR"CRESET": in file "BWHT"%s"CRESET" at line "BWHT"%s"CRESET"\n", __FILE__, __LINE__);
-        #endif
-
-        #ifdef PRODUCTION
-        fprintf(stderr, ""BRED"ERROR"CRESET"\n");
-        #endif
-
-        fclose(file);
-        yaml_parser_delete(&parser);
-        return (EXIT_FAILURE);
+            fclose(file);
+            yaml_parser_delete(&parser);
+            log_error("The function to parse the YAML config file failed",
+                    __FILE__, __func__, __LINE__);
         }
 
     if(event.type != YAML_STREAM_START_EVENT)
         {
-        yaml_event_delete(&event);
-        fclose(file);
-        yaml_parser_delete(&parser);
-        return (EXIT_FAILURE);
+            yaml_event_delete(&event);
+            fclose(file);
+            yaml_parser_delete(&parser);
+            return (EXIT_FAILURE);
         }
 
     if(parse_config_stream_event(&parser, program_list, &event) != EXIT_SUCCESS)
         {
-        #ifdef DEVELOPEMENT
-        fprintf(stderr, ""BRED"ERROR"CRESET": in file "BWHT"%s"CRESET" in function "BWHT"%s"CRESET" at line "BWHT"%d"CRESET"\n    The function to parse the stream event of the config file failed\n", __FILE__, __func__, __LINE__);
-        #endif
-
-        #ifdef DEMO
-        fprintf(stderr, ""BRED"ERROR"CRESET": in file "BWHT"%s"CRESET" at line "BWHT"%s"CRESET"\n", __FILE__, __LINE__);
-        #endif
-
-        #ifdef PRODUCTION
-        fprintf(stderr, ""BRED"ERROR"CRESET"\n");
-        #endif
-
-        yaml_event_delete(&event);
-        fclose(file);
-        yaml_parser_delete(&parser);
-        return (EXIT_FAILURE);
+            yaml_event_delete(&event);
+            fclose(file);
+            yaml_parser_delete(&parser);
+            log_error("The function to parse the stream event of the config file failed",
+                    __FILE__, __func__, __LINE__);
         }
 
     yaml_event_delete(&event);
