@@ -24,8 +24,8 @@ CPPFLAGS := $(INC_FLAGS) -D_GNU_SOURCE -MMD -MP
 CFLAGS		:= -Wall -Wextra -Werror -fcommon
 
 ### LINK ###
-LDFLAGS		:=	-L$(LIB_DIRECTORY) -pthread #-L$(LIB_FT_DIR)
-LDLIBS := -lyaml -ltermcap #-lft
+LDFLAGS		:=	-L$(LIB_DIRECTORY)
+LDLIBS := -lyaml -ltermcap -pthread
 
 
 ### RULES ###
@@ -40,13 +40,13 @@ debug: CFLAGS := -Wall -Wextra -g -no-pie -fcommon
 debug: $(YAML) $(NAME)
 
 san: CPPFLAGS += -DDEVELOPEMENT
-san: CFLAGS := -g \
-	-fsanitize=address \
+san: CFLAGS := -g -O1\
+	-fsanitize=address -fno-omit-frame-pointer \
 	-fsanitize=leak \
 	-fsanitize=pointer-compare \
 	-fsanitize=pointer-subtract \
 	-fsanitize=undefined
-san: LDFLAGS += -static-libsan
+san: LDFLAGS += $(CFLAGS)
 san: $(YAML) $(NAME)
 
 $(YAML):
