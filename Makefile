@@ -5,7 +5,7 @@ SRC_DIRECTORY := ./src/
 INC_DIRECTORY := ./include/
 LIB_DIRECTORY := ./lib/
 BUILD_DIRECTORY := ./build/
-#LIB_FT_DIR	=	./libft/
+LIB_FT_DIR	=	./libft/
 
 ### YAML ###
 YAML_SRC := ./yaml-0.2.5
@@ -24,8 +24,8 @@ CPPFLAGS := $(INC_FLAGS) -D_GNU_SOURCE -MMD -MP
 CFLAGS		:= -Wall -Wextra -Werror -fcommon
 
 ### LINK ###
-LDFLAGS		:=	-L$(LIB_DIRECTORY)
-LDLIBS := -lyaml -ltermcap -pthread
+LDFLAGS		:=	-L$(LIB_DIRECTORY) -L$(LIB_FT_DIR)
+LDLIBS := -lyaml -ltermcap -pthread -lft
 
 
 ### RULES ###
@@ -63,7 +63,7 @@ $(YAML):
 	@rm -Rf $(YAML_SRC)
 
 $(NAME): options $(OBJ)
-	@#$(MAKE) -C $(LIB_FT_DIR) --no-print-directory
+	@$(MAKE) -C $(LIB_FT_DIR) --no-print-directory
 	@echo "$(GREEN)  BUILD$(RESET)    $(H_WHITE)$@$(RESET)"
 	@$(CC) $(LDFLAGS) -o $@ $(OBJ) $(LDLIBS)
 
@@ -76,12 +76,12 @@ $(BUILD_DIRECTORY)/%.o: %.c
 	@$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 
 clean:
-	@#$(MAKE) -C $(LIB_FT_DIR) clean --no-print-directory
+	@$(MAKE) -C $(LIB_FT_DIR) clean --no-print-directory
 	@echo "$(RED)  RM$(RESET)       $(BUILD_DIRECTORY)"
 	@rm -rf $(BUILD_DIRECTORY)
 
 fclean: clean
-	@#$(MAKE) -C $(LIB_FT_DIR) fclean --no-print-directory
+	@$(MAKE) -C $(LIB_FT_DIR) fclean --no-print-directory
 	@echo "$(RED)  RM$(RESET)       $(NAME)"
 	@rm -f $(NAME)
 

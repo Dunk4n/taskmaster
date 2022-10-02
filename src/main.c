@@ -1,106 +1,5 @@
 #include "taskmaster.h"
-
-uint8_t taskmaster_shell(struct program_list *program_list)
-    {
-    (void) program_list;
-//    if(program_list == NULL)
-//        return (EXIT_FAILURE);
-//    if(program_list->global_status.global_status_struct_init == FALSE)
-//        return (EXIT_FAILURE);
-//    if(program_list->global_status.global_status_conf_loaded == FALSE)
-//        return (EXIT_FAILURE);
-//
-////    uint8_t *line;
-//    size_t  size;
-//    uint8_t buffer[128];
-//
-//    buffer[0] = NIL;
-//    size      = 0;
-//
-////    line = NULL;
-//    while(buffer[0] != 4)
-//        {
-//        //write(STDIN_FILENO, SHELL_PROMPT, sizeof(SHELL_PROMPT) - 1);
-//        //TODO get line
-//        size = read(STDIN_FILENO, buffer, 127);
-//        if(buffer[0] == 23 || buffer[0] == 5 || buffer[0] == 18 || buffer[0] == 20 || buffer[0] == 21 || buffer[0] == 27 || buffer[0] == 127)
-//            {
-//            size_t a = 0;
-//            while(a < size)
-//                {
-//                printf("%u, ", buffer[a]);
-//                a++;
-//                }
-//            printf("\n");
-//            }
-//        else
-//            {
-//            write(STDIN_FILENO, buffer, size);
-//            }
-//        //write(STDIN_FILENO, buffer, size);
-////        if(get_next_line(0, (char **) &line) != TRUE && (line == NULL || line[0] == NIL))
-////            {
-////            free(line);
-////            line = NULL;
-////            return (EXIT_FAILURE);
-////            }
-////
-////        ft_printf("%s\n", line);
-////
-////        //TODO manage command
-////        free(line);
-////        line = NULL;
-//        }
-//
-    return (EXIT_SUCCESS);
-    }
-
-uint8_t init_taskmaster(struct taskmaster *taskmaster)
-    {
-    if(taskmaster == NULL)
-        return (EXIT_FAILURE);
-    if(taskmaster->global_status.global_status_struct_init == TRUE)
-        return (EXIT_FAILURE);
-
-    char *str_term_value;
-
-    str_term_value = NULL;
-
-    taskmaster->programs.global_status.global_status_struct_init = FALSE;
-
-    //TODO get term
-    str_term_value = getenv("TERM");
-    if(str_term_value == NULL)
-        return (EXIT_FAILURE);
-    if(tgetent(NULL, str_term_value) < 1)
-        return (EXIT_FAILURE);
-
-    tcgetattr(STDIN_FILENO, &(taskmaster->termios_save));
-    tcgetattr(STDIN_FILENO, &(taskmaster->termios));
-    taskmaster->termios.c_lflag &= ~(ICANON | ECHO);
-    tcsetattr(STDIN_FILENO, TCSADRAIN, &(taskmaster->termios));
-
-    if(init_program_list(&(taskmaster->programs)) != EXIT_SUCCESS)
-        return (EXIT_FAILURE);
-
-    taskmaster->global_status.global_status_struct_init = TRUE;
-
-    return (EXIT_SUCCESS);
-    }
-
-void free_taskmaster(struct taskmaster *taskmaster)
-    {
-    if(taskmaster == NULL)
-        return;
-    if(taskmaster->global_status.global_status_struct_init == FALSE)
-        return;
-
-    free_program_list(&(taskmaster->programs));
-
-    tcsetattr(STDIN_FILENO, TCSADRAIN, &(taskmaster->termios_save));
-
-    taskmaster->programs.global_status.global_status_struct_init = FALSE;
-    }
+#include "minishell.h"
 
 int main(int argc, char **argv)
     {
@@ -156,7 +55,13 @@ int main(int argc, char **argv)
 //        }
 //    display_program_list(&(taskmaster.programs));
 
-    if(taskmaster_shell(&(taskmaster.programs)) != EXIT_SUCCESS)
+    //if(taskmaster_shell(&taskmaster) != EXIT_SUCCESS)
+    //    {
+    //    free_taskmaster(&taskmaster);
+    //    return (EXIT_FAILURE);
+    //    }
+
+    if(taskmaster_shell(&taskmaster) != EXIT_SUCCESS)
         {
         free_taskmaster(&taskmaster);
         return (EXIT_FAILURE);

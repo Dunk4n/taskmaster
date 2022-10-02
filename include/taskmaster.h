@@ -13,9 +13,16 @@
 # include <unistd.h>
 # include <term.h>
 # include "yaml.h"
+# include "minishell.h"
 
-# define FALSE (0)
-# define TRUE (1)
+# ifndef FALSE
+#  define FALSE (0)
+# endif
+
+# ifndef TRUE
+#  define TRUE (1)
+# endif
+
 # define NIL            ('\0')
 
 # define FIRST_BIT      (0x01)
@@ -180,13 +187,38 @@ struct taskmaster
     struct
         {
         // FIRST_BIT     Structure is init          1 = Y / 0 = N
-        uint8_t global_status_struct_init             : 1;
+        uint8_t global_status_struct_init      : 1;
+
+        //               exit the program           1 = Y / 0 = N
+        uint8_t global_status_exit             : 1;
         } global_status;
 
     struct program_list   programs;
 
+    t_command_line command_line;
+
     struct termios  termios;
     struct termios  termios_save;
+
+    uint8_t         str_line[4096];
+    uint16_t        line_size;
+    uint16_t        pos_in_line;
+    int32_t         cursor_pos_x;
+    int32_t         cursor_pos_y;
+};
+
+/**
+* This enumeration represente all the posible shell command
+*/
+enum shell_command
+{
+    SHELL_COMMAND_STATUS,
+    SHELL_COMMAND_START,
+    SHELL_COMMAND_STOP,
+    SHELL_COMMAND_RESTART,
+    SHELL_COMMAND_RELOAD_CONF,
+    SHELL_COMMAND_EXIT,
+    NUMBER_OF_SHELL_COMMAND
 };
 
 uint8_t program_field_cmd_load_function(yaml_parser_t *parser, struct program_specification *program, yaml_event_t *event);
@@ -212,5 +244,20 @@ void display_program_list(struct program_list *programs);
 void free_linked_list_in_program_list(struct program_list *programs);
 void free_program_list(struct program_list *programs);
 void free_program_specification(struct program_specification *program);
+
+uint8_t taskmaster_shell(struct taskmaster *taskmaster);
+uint8_t init_taskmaster(struct taskmaster *taskmaster);
+void    free_taskmaster(struct taskmaster *taskmaster);
+
+uint8_t *get_next_instruction(char *line, int32_t *id);
+uint8_t  separate_line_in_instruction(char *line, uint8_t **instructions);
+uint8_t  execute_command_line(struct taskmaster *taskmaster, char *line);
+
+uint8_t  shell_command_status_function(struct taskmaster *taskmaster, uint8_t **arguments);
+uint8_t  shell_command_start_function(struct taskmaster *taskmaster, uint8_t **arguments);
+uint8_t  shell_command_stop_function(struct taskmaster *taskmaster, uint8_t **arguments);
+uint8_t  shell_command_restart_function(struct taskmaster *taskmaster, uint8_t **arguments);
+uint8_t  shell_command_reload_conf_function(struct taskmaster *taskmaster, uint8_t **arguments);
+uint8_t  shell_command_exit_function(struct taskmaster *taskmaster, uint8_t **arguments);
 
 #endif
