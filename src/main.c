@@ -7,9 +7,9 @@ int main(int argc, char **argv)
 
     taskmaster.global_status.global_status_struct_init = FALSE;
 
-    if(argc != 3)
+    if(argc != 2)
         {
-        printf("test with: ./taskmaster config.yaml config_2.yaml\n");
+        printf("test with: ./taskmaster config.yaml\n");
         return (EXIT_FAILURE);
         }
 
@@ -33,33 +33,6 @@ int main(int argc, char **argv)
         free_taskmaster(&taskmaster);
         return (EXIT_FAILURE);
         }
-
-//    display_program_list(&(taskmaster.programs));
-//    printf("\n\n======================== RELOAD ==============================\n\n");
-//    if(reload_config_file((uint8_t *) argv[2], &(taskmaster.programs)) != EXIT_SUCCESS)
-//        {
-//        #ifdef DEVELOPEMENT
-//        fprintf(stderr, ""BRED"ERROR"CRESET": in file "BWHT"%s"CRESET" in function "BWHT"%s"CRESET" at line "BWHT"%d"CRESET"\n    The reload of the configuration file failed\n", __FILE__, __func__, __LINE__);
-//        #endif
-//
-//        #ifdef DEMO
-//        fprintf(stderr, ""BRED"ERROR"CRESET": in file "BWHT"%s"CRESET" at line "BWHT"%s"CRESET"\n", __FILE__, __LINE__);
-//        #endif
-//
-//        #ifdef PRODUCTION
-//        fprintf(stderr, ""BRED"ERROR"CRESET"\n");
-//        #endif
-//
-//        free_taskmaster(&taskmaster);
-//        return (EXIT_FAILURE);
-//        }
-//    display_program_list(&(taskmaster.programs));
-
-    //if(taskmaster_shell(&taskmaster) != EXIT_SUCCESS)
-    //    {
-    //    free_taskmaster(&taskmaster);
-    //    return (EXIT_FAILURE);
-    //    }
 
     if(taskmaster_shell(&taskmaster) != EXIT_SUCCESS)
         {

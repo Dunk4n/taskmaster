@@ -15,6 +15,7 @@
 #define WHT "\e[0;37m"
 
 //Regular bold text
+#define BOLD "\e[1m"
 #define BBLK "\e[1;30m"
 #define BRED "\e[1;31m"
 #define BGRN "\e[1;32m"
@@ -44,7 +45,7 @@
 #define CYNB "\e[46m"
 #define WHTB "\e[47m"
 
-//High intensty background 
+//High intensty background
 #define BLKHB "\e[0;100m"
 #define REDHB "\e[0;101m"
 #define GRNHB "\e[0;102m"

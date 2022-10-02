@@ -252,6 +252,7 @@ uint8_t program_field_log_load_function(yaml_parser_t *parser, struct program_sp
 uint8_t init_program_list(struct program_list *program_list);
 uint8_t parse_config_file(uint8_t *file_name, struct program_list *program_list);
 uint8_t reload_config_file(uint8_t *file_name, struct program_list *program_list);
+void display_program_specification(struct program_specification *program);
 void display_program_list(struct program_list *programs);
 void free_linked_list_in_program_list(struct program_list *programs);
 void free_program_list(struct program_list *programs);

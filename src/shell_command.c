@@ -7,6 +7,8 @@ uint8_t  shell_command_status_function(struct taskmaster *taskmaster, uint8_t **
         return (EXIT_FAILURE);
     if(taskmaster->global_status.global_status_struct_init == FALSE)
         return (EXIT_FAILURE);
+    if(taskmaster->programs.global_status.global_status_struct_init == FALSE)
+        return (EXIT_FAILURE);
     if(arguments == NULL)
         return (EXIT_FAILURE);
     if(arguments[0] == NULL)
@@ -14,6 +16,9 @@ uint8_t  shell_command_status_function(struct taskmaster *taskmaster, uint8_t **
 
     uint8_t cnt;
     uint8_t argument_number;
+    struct program_specification *actual_program;
+
+    actual_program = NULL;
 
     cnt = 0;
     while(cnt < SHELL_MAX_ARGUMENT && arguments[cnt] != NULL)
@@ -23,20 +28,68 @@ uint8_t  shell_command_status_function(struct taskmaster *taskmaster, uint8_t **
 
     if(argument_number == 0)
         {
-        //TODO missing arguments
-        //TODO echo command help
-        ft_printf("Missing program name argument\n");
-        return (EXIT_FAILURE);
+        if(pthread_mutex_lock(&(taskmaster->programs.mutex_program_linked_list)) != 0)
+            return (EXIT_FAILURE);
+
+        actual_program = taskmaster->programs.program_linked_list;
+        while(actual_program != NULL)
+            {
+            if(actual_program->global_status.global_status_struct_init == FALSE)
+                {
+                actual_program = NULL;
+                break;
+                }
+            if(actual_program->str_name != NULL && actual_program->name_length > 0)
+                {
+                ft_printf("    [%s]\n", actual_program->str_name);
+                }
+
+            actual_program = actual_program->next_program;
+            }
+
+        if(pthread_mutex_unlock(&(taskmaster->programs.mutex_program_linked_list)) != 0)
+            return (EXIT_FAILURE);
+        return (EXIT_SUCCESS);
         }
 
-    ft_printf("STATUS: ");
+    if(pthread_mutex_lock(&(taskmaster->programs.mutex_program_linked_list)) != 0)
+        return (EXIT_FAILURE);
+
     cnt = 1;
     while(arguments[cnt] != NULL && cnt < SHELL_MAX_ARGUMENT)
         {
-        ft_printf(" [%s]", arguments[cnt]);
+        actual_program = taskmaster->programs.program_linked_list;
+        while(actual_program != NULL)
+            {
+            if(actual_program->global_status.global_status_struct_init == FALSE)
+                {
+                actual_program = NULL;
+                break;
+                }
+            if(actual_program->str_name != NULL && actual_program->name_length > 0)
+                {
+                if(strcmp((char *) arguments[cnt], (char *) actual_program->str_name) == 0)
+                    {
+                    //TODO display status of actual_program
+                    ft_printf(BOLD"Status of program ["COLOR_RESET"%s"BOLD"]"COLOR_RESET":\n\n", arguments[cnt]);
+                    display_program_specification(actual_program);
+                    ft_printf("\n");
+                    break;
+                    }
+                }
+
+            actual_program = actual_program->next_program;
+            }
+
+        if(actual_program == NULL)
+            {
+            ft_printf(BOLD"Program ["COLOR_RESET"%s"BOLD"] not found\n\n"COLOR_RESET, arguments[cnt]);
+            }
         cnt++;
         }
-    ft_printf("\n");
+
+    if(pthread_mutex_unlock(&(taskmaster->programs.mutex_program_linked_list)) != 0)
+        return (EXIT_FAILURE);
 
     return (EXIT_SUCCESS);
     }
@@ -54,6 +107,9 @@ uint8_t  shell_command_start_function(struct taskmaster *taskmaster, uint8_t **a
 
     uint8_t cnt;
     uint8_t argument_number;
+    struct program_specification *actual_program;
+
+    actual_program = NULL;
 
     cnt = 0;
     while(cnt < SHELL_MAX_ARGUMENT && arguments[cnt] != NULL)
@@ -69,14 +125,59 @@ uint8_t  shell_command_start_function(struct taskmaster *taskmaster, uint8_t **a
         return (EXIT_FAILURE);
         }
 
-    ft_printf("START: ");
+    if(pthread_mutex_lock(&(taskmaster->programs.mutex_program_linked_list)) != 0)
+        return (EXIT_FAILURE);
+
     cnt = 1;
     while(arguments[cnt] != NULL && cnt < SHELL_MAX_ARGUMENT)
         {
-        ft_printf(" [%s]", arguments[cnt]);
+        actual_program = taskmaster->programs.program_linked_list;
+        while(actual_program != NULL)
+            {
+            if(actual_program->global_status.global_status_struct_init == FALSE)
+                {
+                actual_program = NULL;
+                break;
+                }
+            if(actual_program->str_name != NULL && actual_program->name_length > 0)
+                {
+                if(strcmp((char *) arguments[cnt], (char *) actual_program->str_name) == 0)
+                    {
+                    //TODO check if program can be started ex: global_status_need_to_stop
+                    if(actual_program->global_status.global_status_conf_loaded == TRUE && actual_program->global_status.global_status_configuration_reloading == FALSE)
+                        {
+                        if(actual_program->global_status.global_status_started == FALSE)
+                            {
+                            //TODO add in file log start of arguments[cnt]
+                            //TODO start actual_program
+                            ft_printf(BOLD"Start program ["COLOR_RESET"%s"BOLD"]"COLOR_RESET":\n\n", arguments[cnt]);
+
+                            actual_program->global_status.global_status_need_to_start = TRUE;
+
+                            break;
+                            }
+                        else
+                            {
+                            ft_printf(BOLD"Program ["COLOR_RESET"%s"BOLD"] is already started"COLOR_RESET":\n\n", arguments[cnt]);
+
+                            break;
+                            }
+                        }
+                    }
+                }
+
+            actual_program = actual_program->next_program;
+            }
+
+        if(actual_program == NULL)
+            {
+            ft_printf(BOLD"Program ["COLOR_RESET"%s"BOLD"] not found\n\n"COLOR_RESET, arguments[cnt]);
+            }
         cnt++;
         }
-    ft_printf("\n");
+
+    if(pthread_mutex_unlock(&(taskmaster->programs.mutex_program_linked_list)) != 0)
+        return (EXIT_FAILURE);
 
     return (EXIT_SUCCESS);
     }
@@ -113,6 +214,7 @@ uint8_t  shell_command_stop_function(struct taskmaster *taskmaster, uint8_t **ar
     cnt = 1;
     while(arguments[cnt] != NULL && cnt < SHELL_MAX_ARGUMENT)
         {
+        //TODO add in file log stop of arguments[cnt]
         ft_printf(" [%s]", arguments[cnt]);
         cnt++;
         }
@@ -153,6 +255,7 @@ uint8_t  shell_command_restart_function(struct taskmaster *taskmaster, uint8_t *
     cnt = 1;
     while(arguments[cnt] != NULL && cnt < SHELL_MAX_ARGUMENT)
         {
+        //TODO add in file log restart of arguments[cnt]
         ft_printf(" [%s]", arguments[cnt]);
         cnt++;
         }
@@ -194,14 +297,26 @@ uint8_t  shell_command_reload_conf_function(struct taskmaster *taskmaster, uint8
         return (EXIT_FAILURE);
         }
 
-    ft_printf("RELOAD_CONF: ");
-    cnt = 1;
-    while(arguments[cnt] != NULL && cnt < SHELL_MAX_ARGUMENT)
+    ft_printf("RELOAD_CONF\n");
+
+    //TODO add in file log reloading config file
+
+    if(reload_config_file(arguments[1], &(taskmaster->programs)) != EXIT_SUCCESS)
         {
-        ft_printf(" [%s]", arguments[cnt]);
-        cnt++;
+        #ifdef DEVELOPEMENT
+        fprintf(stderr, ""BRED"ERROR"CRESET": in file "BWHT"%s"CRESET" in function "BWHT"%s"CRESET" at line "BWHT"%d"CRESET"\n    The reload of the configuration file failed\n", __FILE__, __func__, __LINE__);
+        #endif
+
+        #ifdef DEMO
+        fprintf(stderr, ""BRED"ERROR"CRESET": in file "BWHT"%s"CRESET" at line "BWHT"%s"CRESET"\n", __FILE__, __LINE__);
+        #endif
+
+        #ifdef PRODUCTION
+        fprintf(stderr, ""BRED"ERROR"CRESET"\n");
+        #endif
+
+        return (EXIT_FAILURE);
         }
-    ft_printf("\n");
 
     return (EXIT_SUCCESS);
     }

@@ -156,8 +156,19 @@ uint8_t reload_config_file(uint8_t *file_name, struct program_list *program_list
 
                 if(actual_program_original_list->name_length == actual_program->name_length && strcmp((char *) actual_program_original_list->str_name, (char *) actual_program->str_name) == 0)
                     {
+                    if(actual_program_original_list->restart_tmp_program != NULL)
+                        {
+                        free_program_specification(actual_program_original_list->restart_tmp_program);
+                        free(actual_program_original_list->restart_tmp_program);
+                        actual_program_original_list->restart_tmp_program = NULL;
+
+                        actual_program_original_list->global_status.global_status_configuration_reloading = FALSE;
+                        actual_program_original_list->global_status.global_status_need_to_restart = FALSE;
+                        }
+
                     if(is_important_value_changed(actual_program_original_list, actual_program) == TRUE)
                         {
+                        actual_program_original_list->global_status.global_status_configuration_reloading = TRUE;
                         actual_program_original_list->global_status.global_status_need_to_restart = TRUE;
                         actual_program_original_list->restart_tmp_program = actual_program;
 

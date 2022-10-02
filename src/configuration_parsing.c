@@ -853,7 +853,7 @@ void free_program_list(struct program_list *programs)
 /**
 * This function display the structure program_specification
 */
-static void display_program_specification(struct program_specification *program)
+void display_program_specification(struct program_specification *program)
     {
     if(program == NULL)
         {
@@ -912,7 +912,7 @@ static void display_program_specification(struct program_specification *program)
 
     printf("\n");
 
-    printf("NAME: [%s]\n", program->str_name);
+    printf(BHYEL"NAME"COLOR_RESET": [%s]\n", program->str_name);
     printf("START_COMMAND: [%s]\n", program->str_start_command);
     printf("NUMBER_OF_PROCESS: %u\n", program->number_of_process);
     if(program->auto_start == TRUE)
