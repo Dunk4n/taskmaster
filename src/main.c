@@ -19,15 +19,15 @@ int main(int argc, char **argv)
     if(parse_config_file((uint8_t *) argv[1], &(taskmaster.programs)) != EXIT_SUCCESS)
         {
         #ifdef DEVELOPEMENT
-        fprintf(stderr, "\033[1;31mERROR\033[0m: in file \033[1m%s\033[0m in function \033[1m%s\033[0m at line \033[1m%d\033[0m\n    The parsing of the configuration file failed\n", __FILE__, __func__, __LINE__);
+        fprintf(stderr, ""BRED"ERROR"CRESET": in file "BWHT"%s"CRESET" in function "BWHT"%s"CRESET" at line "BWHT"%d"CRESET"\n    The parsing of the configuration file failed\n", __FILE__, __func__, __LINE__);
         #endif
 
         #ifdef DEMO
-        fprintf(stderr, "\033[1;31mERROR\033[0m: in file \033[1m%s\033[0m at line \033[1m%s\033[0m\n", __FILE__, __LINE__);
+        fprintf(stderr, ""BRED"ERROR"CRESET": in file "BWHT"%s"CRESET" at line "BWHT"%s"CRESET"\n", __FILE__, __LINE__);
         #endif
 
         #ifdef PRODUCTION
-        fprintf(stderr, "\033[1;31mERROR\033[0m\n");
+        fprintf(stderr, ""BRED"ERROR"CRESET"\n");
         #endif
 
         free_taskmaster(&taskmaster);
@@ -39,15 +39,15 @@ int main(int argc, char **argv)
 //    if(reload_config_file((uint8_t *) argv[2], &(taskmaster.programs)) != EXIT_SUCCESS)
 //        {
 //        #ifdef DEVELOPEMENT
-//        fprintf(stderr, "\033[1;31mERROR\033[0m: in file \033[1m%s\033[0m in function \033[1m%s\033[0m at line \033[1m%d\033[0m\n    The reload of the configuration file failed\n", __FILE__, __func__, __LINE__);
+//        fprintf(stderr, ""BRED"ERROR"CRESET": in file "BWHT"%s"CRESET" in function "BWHT"%s"CRESET" at line "BWHT"%d"CRESET"\n    The reload of the configuration file failed\n", __FILE__, __func__, __LINE__);
 //        #endif
 //
 //        #ifdef DEMO
-//        fprintf(stderr, "\033[1;31mERROR\033[0m: in file \033[1m%s\033[0m at line \033[1m%s\033[0m\n", __FILE__, __LINE__);
+//        fprintf(stderr, ""BRED"ERROR"CRESET": in file "BWHT"%s"CRESET" at line "BWHT"%s"CRESET"\n", __FILE__, __LINE__);
 //        #endif
 //
 //        #ifdef PRODUCTION
-//        fprintf(stderr, "\033[1;31mERROR\033[0m\n");
+//        fprintf(stderr, ""BRED"ERROR"CRESET"\n");
 //        #endif
 //
 //        free_taskmaster(&taskmaster);
