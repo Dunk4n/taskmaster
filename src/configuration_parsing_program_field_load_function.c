@@ -629,7 +629,7 @@ uint8_t program_field_stdout_load_function(yaml_parser_t *parser, struct program
     if(event == NULL)
         return (EXIT_FAILURE);
 
-    uint8_t *new_cmd;
+    char *new_cmd;
     uint32_t cnt;
 
     new_cmd = NULL;
@@ -655,7 +655,7 @@ uint8_t program_field_stdout_load_function(yaml_parser_t *parser, struct program
     if(event->type != YAML_SCALAR_EVENT || event->data.scalar.value == NULL || event->data.scalar.length == 0)
         return (EXIT_FAILURE);
 
-    new_cmd = reallocarray(program->str_stdout, sizeof(uint8_t), event->data.scalar.length + 1);
+    new_cmd = (char *)reallocarray(program->str_stdout, sizeof(uint8_t), event->data.scalar.length + 1);
     if(new_cmd == NULL)
         return (EXIT_FAILURE);
 
@@ -686,7 +686,7 @@ uint8_t program_field_stderr_load_function(yaml_parser_t *parser, struct program
     if(event == NULL)
         return (EXIT_FAILURE);
 
-    uint8_t *new_cmd;
+    char *new_cmd;
     uint32_t cnt;
 
     new_cmd = NULL;
@@ -712,7 +712,7 @@ uint8_t program_field_stderr_load_function(yaml_parser_t *parser, struct program
     if(event->type != YAML_SCALAR_EVENT || event->data.scalar.value == NULL || event->data.scalar.length == 0)
         return (EXIT_FAILURE);
 
-    new_cmd = reallocarray(program->str_stderr, sizeof(uint8_t), event->data.scalar.length + 1);
+    new_cmd = (char *)reallocarray(program->str_stderr, sizeof(uint8_t), event->data.scalar.length + 1);
     if(new_cmd == NULL)
         return (EXIT_FAILURE);
 

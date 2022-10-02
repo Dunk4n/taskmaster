@@ -161,14 +161,14 @@ uint8_t reload_config_file(uint8_t *file_name, struct program_list *program_list
                         actual_program_original_list->global_status.global_status_need_to_restart = TRUE;
                         actual_program_original_list->restart_tmp_program = actual_program;
 
-                        actual_program = actual_program->next_program;
+                        actual_program = actual_program->next;
 
                         if(actual_program_original_list->restart_tmp_program == new_program_list.program_linked_list || previous_program == NULL)
                             new_program_list.program_linked_list = actual_program;
                         else
-                            previous_program->next_program = actual_program;
+                            previous_program->next = actual_program;
 
-                        actual_program_original_list->restart_tmp_program->next_program = NULL;
+                        actual_program_original_list->restart_tmp_program->next = NULL;
                         }
                     else
                         {
@@ -179,9 +179,9 @@ uint8_t reload_config_file(uint8_t *file_name, struct program_list *program_list
                         actual_program_original_list->stop_time = actual_program->stop_time;
 
                         if(actual_program == new_program_list.program_linked_list || previous_program == NULL)
-                            new_program_list.program_linked_list = actual_program->next_program;
+                            new_program_list.program_linked_list = actual_program->next;
                         else
-                            previous_program->next_program = actual_program->next_program;
+                            previous_program->next = actual_program->next;
 
                         free_program_specification(actual_program);
                         free(actual_program);
@@ -193,14 +193,14 @@ uint8_t reload_config_file(uint8_t *file_name, struct program_list *program_list
                     }
 
                 previous_program = actual_program;
-                actual_program = actual_program->next_program;
+                actual_program = actual_program->next;
                 cnt_new_list++;
                 }
 
             if(cnt_new_list >= list_length)
                 actual_program_original_list->global_status.global_status_need_to_remove = TRUE;
 
-            actual_program_original_list = actual_program_original_list->next_program;
+            actual_program_original_list = actual_program_original_list->next;
             cnt++;
             }
 
@@ -217,7 +217,7 @@ uint8_t reload_config_file(uint8_t *file_name, struct program_list *program_list
                 return (EXIT_FAILURE);
                 }
 
-            program_list->last_program_linked_list->next_program = new_program_list.program_linked_list;
+            program_list->last_program_linked_list->next = new_program_list.program_linked_list;
 
             if(new_program_list.last_program_linked_list != NULL)
                 program_list->last_program_linked_list = new_program_list.last_program_linked_list;

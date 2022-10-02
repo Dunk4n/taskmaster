@@ -50,6 +50,12 @@ int main(int argc, char **argv)
     //    return (EXIT_FAILURE);
     //    }
 
+    if (tm_server(&taskmaster)) {
+        free_taskmaster(&taskmaster);
+        log_error("server failed",
+                __FILE__, __func__, __LINE__);
+    }
+
     if(taskmaster_shell(&taskmaster) != EXIT_SUCCESS)
         {
         free_taskmaster(&taskmaster);

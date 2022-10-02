@@ -79,7 +79,7 @@ static uint8_t set_program_default_value(struct program_specification *program)
     program->umask = PROGRAM_DEFAULT_UMASk;
     program->e_log = PROGRAM_DEFAULT_LOG_STATUS;
     program->restart_tmp_program = NULL;
-    program->next_program = NULL;
+    program->next = NULL;
 
     program->exit_codes_number = 0;
 
@@ -234,7 +234,7 @@ static uint8_t add_new_program(struct program_list *program_list, uint8_t *progr
         }
     else
         {
-        program_list->last_program_linked_list->next_program = program_tmp;
+        program_list->last_program_linked_list->next = program_tmp;
         program_list->last_program_linked_list = program_tmp;
 
         program_list->number_of_program++;
@@ -387,7 +387,7 @@ static uint8_t parse_config_one_program(yaml_parser_t *parser, struct program_li
                 break;
                 }
 
-            actual_program_specification = actual_program_specification->next_program;
+            actual_program_specification = actual_program_specification->next;
             cnt++;
             }
 
@@ -766,7 +766,10 @@ void free_program_specification(struct program_specification *program)
         }
     program->restart_tmp_program = NULL;
 
-    program->next_program = NULL;
+    program->next = NULL;
+    if (program->thrd) free(program->thrd);
+    if (program->log.out != UNINITIALIZED_FD) close(program->log.out);
+    if (program->log.err != UNINITIALIZED_FD) close(program->log.err);
     }
 
 /**
@@ -791,7 +794,7 @@ void free_linked_list_in_program_list(struct program_list *programs)
         {
         actual_program = programs->program_linked_list;
 
-        programs->program_linked_list = actual_program->next_program;
+        programs->program_linked_list = actual_program->next;
 
         free_program_specification(actual_program);
         free(actual_program);
@@ -974,14 +977,14 @@ static void display_program_specification(struct program_specification *program)
         }
 
     printf("\n");
-    if(program->next_program == NULL)
+    if(program->next == NULL)
         printf("NEXT_PROGRAM: NULL\n");
     else
         {
-        if(program->next_program->str_name != NULL)
-            printf("NEXT_PROGRAM: %p, [%s]\n", program->next_program, program->next_program->str_name);
+        if(program->next->str_name != NULL)
+            printf("NEXT_PROGRAM: %p, [%s]\n", program->next, program->next->str_name);
         else
-            printf("NEXT_PROGRAM: %p\n", program->next_program);
+            printf("NEXT_PROGRAM: %p\n", program->next);
         }
     }
 
@@ -1009,7 +1012,7 @@ void display_program_list(struct program_list *programs)
         printf("\n"BHYEL"PROGRAM SPECIFICATION %u"CRESET":\n\n", cnt);
         display_program_specification(actual_program);
 
-        actual_program = actual_program->next_program;
+        actual_program = actual_program->next;
         cnt++;
         }
 
