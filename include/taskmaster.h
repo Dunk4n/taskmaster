@@ -150,17 +150,15 @@ struct program_specification
 
     struct program_specification *restart_tmp_program;
 
-    /* array of runtime data relative to each thread, the thread can access
-    ** to its related data thru its rid which is its index also
-    */
+  /* runtime data relative to a thread. */
     struct thread_data {
-      	uint32_t rid; /* rank id of current thread/process */
-      	pthread_t tid; /* thread id of current thread */
-      	uint32_t pid; /* pid of current process */
-        /* how many time the process can be restarted */
-      	uint16_t restart_counter;
-      	uint8_t exit_status; /* value of exit from the current process */
-    } *launch_thread; /* array of thread_data */
+      uint32_t rid;  /* rank id of current thread/proc. Index for an array */
+      pthread_t tid; /* thread id of current thread */
+      uint32_t pid;  /* pid of current process */
+      /* how many time the process can be restarted */
+      uint16_t restart_counter;
+      uint8_t exit_status; /* value of exit from the current process */
+    } *launch_thread;	 /* array of thread_data. One thread per processus */
 
     /* Linked list */
     struct program_specification *next_program;
@@ -200,6 +198,7 @@ struct taskmaster
     struct termios  termios_save;
 };
 
+/* configuration_parsing_program_field_load_function.c */
 uint8_t program_field_cmd_load_function(yaml_parser_t *parser, struct program_specification *program, yaml_event_t *event);
 uint8_t program_field_numprocs_load_function(yaml_parser_t *parser, struct program_specification *program, yaml_event_t *event);
 uint8_t program_field_autostart_load_function(yaml_parser_t *parser, struct program_specification *program, yaml_event_t *event);
@@ -216,6 +215,7 @@ uint8_t program_field_workingdir_load_function(yaml_parser_t *parser, struct pro
 uint8_t program_field_umask_load_function(yaml_parser_t *parser, struct program_specification *program, yaml_event_t *event);
 uint8_t program_field_log_load_function(yaml_parser_t *parser, struct program_specification *program, yaml_event_t *event);
 
+/* configuration_parsing.c */
 uint8_t init_program_list(struct program_list *program_list);
 uint8_t parse_config_file(uint8_t *file_name, struct program_list *program_list);
 uint8_t reload_config_file(uint8_t *file_name, struct program_list *program_list);
@@ -223,5 +223,15 @@ void display_program_list(struct program_list *programs);
 void free_linked_list_in_program_list(struct program_list *programs);
 void free_program_list(struct program_list *programs);
 void free_program_specification(struct program_specification *program);
+
+/* error.c */
+#define log_error(msg, file, func, line) \
+  do {                                   \
+    err_display(msg, file, func, line);  \
+    return (EXIT_FAILURE);               \
+  } while (0)
+
+void err_display(const char *msg, const char *file, const char *func,
+			uint32_t line);
 
 #endif

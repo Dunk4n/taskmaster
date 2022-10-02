@@ -118,22 +118,11 @@ int main(int argc, char **argv)
         return (EXIT_FAILURE);
 
     if(parse_config_file((uint8_t *) argv[1], &(taskmaster.programs)) != EXIT_SUCCESS)
-        {
-        #ifdef DEVELOPEMENT
-        fprintf(stderr, ""BRED"ERROR"CRESET": in file "BWHT"%s"CRESET" in function "BWHT"%s"CRESET" at line "BWHT"%d"CRESET"\n    The parsing of the configuration file failed\n", __FILE__, __func__, __LINE__);
-        #endif
-
-        #ifdef DEMO
-        fprintf(stderr, ""BRED"ERROR"CRESET": in file "BWHT"%s"CRESET" at line "BWHT"%s"CRESET"\n", __FILE__, __LINE__);
-        #endif
-
-        #ifdef PRODUCTION
-        fprintf(stderr, ""BRED"ERROR"CRESET"\n");
-        #endif
-
+    {
         free_taskmaster(&taskmaster);
-        return (EXIT_FAILURE);
-        }
+        log_error("The parsing of the configuration file failed",
+                __FILE__, __func__, __LINE__);
+    }
 
 //    display_program_list(&(taskmaster.programs));
 //    printf("\n\n======================== RELOAD ==============================\n\n");
