@@ -1,33 +1,5 @@
 #include "taskmaster.h"
 
-static void err_display(const char *msg, const char *file, const char *func,
-			uint32_t line) {
-#ifdef DEVELOPEMENT
-  fprintf(stderr,
-	  "" BRED "ERROR" CRESET ": in file " BWHT "%s" CRESET
-	  " in function " BWHT "%s" CRESET " at line " BWHT "%d" CRESET
-	  "\n    %s\n",
-	  file, func, line, msg);
-#endif
-
-#ifdef DEMO
-  fprintf(stderr,
-	  "" BRED "ERROR" CRESET ": in file " BWHT "%s" CRESET " at line " BWHT
-	  "%s" CRESET "\n",
-	  file, line);
-#endif
-
-#ifdef PRODUCTION
-  fprintf(stderr, "" BRED "ERROR" CRESET "\n");
-#endif
-}
-
-#define log_error(msg, file, func, line) \
-  do {                                      \
-    err_display(msg, file, func, line);     \
-    return (EXIT_FAILURE);                  \
-  } while (0)
-
 /**
 * This array correspond to all the possible attribut name for a program in the YAML config file
 */
@@ -72,10 +44,39 @@ uint8_t (*const g_program_specification_field_load_function[NUMBER_OF_PROGRAM_SP
     program_field_log_load_function,
     };
 
+static void init_thread(const struct program_specification *pgm,
+                        struct thread_data *thrd) {
+    for (uint32_t i = 0; i < pgm->number_of_process; i++) {
+        thrd->rid = i;
+        thrd->restart_counter = pgm->start_retries;
+    }
+}
+
+/* If config says that process logs somewhere, init_log() open and store these
+ * files */
+static uint8_t init_log(struct program_specification *pgm) {
+    pgm->log.out = UNINITIALIZED_FD;
+    pgm->log.out = UNINITIALIZED_FD;
+
+    if (pgm->str_stdout) {
+        pgm->log.out = open(pgm->str_stdout, O_RDWR | O_CREAT | O_APPEND, 0755);
+        if (pgm->log.out == FD_ERR) { /* TODO: do something */
+            return EXIT_FAILURE;
+        }
+    }
+    if (pgm->str_stderr) {
+        pgm->log.err = open(pgm->str_stderr, O_RDWR | O_CREAT | O_APPEND, 0755);
+        if (pgm->log.err == FD_ERR) { /* TODO: do something */
+            return EXIT_FAILURE;
+        }
+    }
+    return EXIT_SUCCESS;
+}
+
 /**
 * This function set to the default value the structure program_specification
 */
-static uint8_t set_program_default_value(struct program_specification *program)
+static uint8_t initialize_pgm_config(struct program_specification *program)
     {
     if(program == NULL)
         {
@@ -107,7 +108,7 @@ static uint8_t set_program_default_value(struct program_specification *program)
     program->umask = PROGRAM_DEFAULT_UMASk;
     program->e_log = PROGRAM_DEFAULT_LOG_STATUS;
     program->restart_tmp_program = NULL;
-    program->next_program = NULL;
+    program->next = NULL;
 
     program->exit_codes_number = 0;
 
@@ -118,6 +119,13 @@ static uint8_t set_program_default_value(struct program_specification *program)
     program->exit_codes_number = 1;
 
     program->global_status.global_status_struct_init = TRUE;
+
+    program->thrd = NULL;
+    program->thrd = (struct thread_data *)calloc(program->number_of_process,
+            sizeof(struct thread_data));
+    if (!program->thrd) return EXIT_FAILURE;
+    if (init_log(program)) return EXIT_FAILURE;
+    init_thread(program, program->thrd);
 
     return (EXIT_SUCCESS);
     }
@@ -246,7 +254,7 @@ static uint8_t add_new_program(struct program_list *program_list, uint8_t *progr
     if(program_tmp == NULL)
         return (EXIT_FAILURE);
 
-    if(set_program_default_value(program_tmp) != EXIT_SUCCESS)
+    if(initialize_pgm_config(program_tmp) != EXIT_SUCCESS)
         {
         free(program_tmp);
         program_tmp = NULL;
@@ -262,7 +270,7 @@ static uint8_t add_new_program(struct program_list *program_list, uint8_t *progr
         }
     else
         {
-        program_list->last_program_linked_list->next_program = program_tmp;
+        program_list->last_program_linked_list->next = program_tmp;
         program_list->last_program_linked_list = program_tmp;
 
         program_list->number_of_program++;
@@ -415,7 +423,7 @@ static uint8_t parse_config_one_program(yaml_parser_t *parser, struct program_li
                 break;
                 }
 
-            actual_program_specification = actual_program_specification->next_program;
+            actual_program_specification = actual_program_specification->next;
             cnt++;
             }
 
@@ -794,7 +802,10 @@ void free_program_specification(struct program_specification *program)
         }
     program->restart_tmp_program = NULL;
 
-    program->next_program = NULL;
+    program->next = NULL;
+    if (program->thrd) free(program->thrd);
+    if (program->log.out != UNINITIALIZED_FD) close(program->log.out);
+    if (program->log.err != UNINITIALIZED_FD) close(program->log.err);
     }
 
 /**
@@ -819,7 +830,7 @@ void free_linked_list_in_program_list(struct program_list *programs)
         {
         actual_program = programs->program_linked_list;
 
-        programs->program_linked_list = actual_program->next_program;
+        programs->program_linked_list = actual_program->next;
 
         free_program_specification(actual_program);
         free(actual_program);
@@ -1002,14 +1013,14 @@ void display_program_specification(struct program_specification *program)
         }
 
     printf("\n");
-    if(program->next_program == NULL)
+    if(program->next == NULL)
         printf("NEXT_PROGRAM: NULL\n");
     else
         {
-        if(program->next_program->str_name != NULL)
-            printf("NEXT_PROGRAM: %p, [%s]\n", program->next_program, program->next_program->str_name);
+        if(program->next->str_name != NULL)
+            printf("NEXT_PROGRAM: %p, [%s]\n", program->next, program->next->str_name);
         else
-            printf("NEXT_PROGRAM: %p\n", program->next_program);
+            printf("NEXT_PROGRAM: %p\n", program->next);
         }
     }
 
@@ -1037,7 +1048,7 @@ void display_program_list(struct program_list *programs)
         printf("\n"BHYEL"PROGRAM SPECIFICATION %u"CRESET":\n\n", cnt);
         display_program_specification(actual_program);
 
-        actual_program = actual_program->next_program;
+        actual_program = actual_program->next;
         cnt++;
         }
 

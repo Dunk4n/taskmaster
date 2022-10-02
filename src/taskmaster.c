@@ -56,9 +56,9 @@ uint8_t init_taskmaster(struct taskmaster *taskmaster)
     if(taskmaster->global_status.global_status_struct_init == TRUE)
         return (EXIT_FAILURE);
 
-    char *str_term_value;
+    /* char *str_term_value; */
 
-    str_term_value = NULL;
+    /* str_term_value = NULL; */
 
     taskmaster->programs.global_status.global_status_struct_init = FALSE;
 

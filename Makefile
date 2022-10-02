@@ -63,7 +63,7 @@ $(YAML):
 	@rm -Rf $(YAML_SRC)
 
 $(NAME): options $(OBJ)
-	@$(MAKE) -C $(LIB_FT_DIR) --no-print-directory
+	@$(MAKE) -s -C $(LIB_FT_DIR) --no-print-directory
 	@echo "$(GREEN)  BUILD$(RESET)    $(H_WHITE)$@$(RESET)"
 	@$(CC) $(LDFLAGS) -o $@ $(OBJ) $(LDLIBS)
 

@@ -148,8 +148,8 @@ struct program_specification
     uint32_t                          start_retries;            // 7.  How many times a restart should be attempted before aborting
     int32_t                           stop_signal;              // 8.  Which signal should be used to stop (i.e. exit gracefully) the program
     uint32_t                          stop_time;                // 9.  How long to wait after a graceful stop before killing the program
-    uint8_t                          *str_stdout;               // 10. Options to discard the program’s stdout/stderr or to redirect them to files
-    uint8_t                          *str_stderr;
+    char                             *str_stdout;               // 10. Options to discard the program’s stdout/stderr or to redirect them to files
+    char                             *str_stderr;
     uint8_t                         **env;                      // 11. Environment variables to set before launching the program // array of strings
     uint32_t                          env_length;
     uint8_t                          *str_working_directory;    // 12. A working directory to set before launching the program
@@ -158,20 +158,23 @@ struct program_specification
 
     struct program_specification *restart_tmp_program;
 
-    /* array of runtime data relative to each thread, the thread can access
-    ** to its related data thru its rid which is its index also
-    */
+    struct log {
+        int32_t out; /* fd log stdout */
+        int32_t err; /* fd log stderr */
+    } log;
+
+    /* runtime data relative to a thread. */
     struct thread_data {
-      	uint32_t rid; /* rank id of current thread/process */
-      	pthread_t tid; /* thread id of current thread */
-      	uint32_t pid; /* pid of current process */
-        /* how many time the process can be restarted */
-      	uint16_t restart_counter;
-      	uint8_t exit_status; /* value of exit from the current process */
-    } *launch_thread; /* array of thread_data */
+      uint32_t rid;  /* rank id of current thread/proc. Index for an array */
+      pthread_t tid; /* thread id of current thread */
+      uint32_t pid;  /* pid of current process */
+      /* how many time the process can be restarted */
+      uint16_t restart_counter;
+      uint8_t exit_status; /* value of exit from the current process */
+    } *thrd; /* array of thread_data. One thread per processus */
 
     /* Linked list */
-    struct program_specification *next_program;
+    struct program_specification *next;
 };
 
 /**
@@ -196,16 +199,14 @@ struct program_list
 
 struct taskmaster
 {
-    struct
-        {
-        // FIRST_BIT     Structure is init          1 = Y / 0 = N
-        uint8_t global_status_struct_init      : 1;
+    /* taskmaster status . Y = 0, N = 1 */
+    struct {
+        uint8_t global_status_struct_init      : 1; /* structure is init */
+        uint8_t global_status_exit             : 1; /* exit the program */
+    } global_status;
 
-        //               exit the program           1 = Y / 0 = N
-        uint8_t global_status_exit             : 1;
-        } global_status;
-
-    struct program_list   programs;
+    /* node with head, tail & data of program list */
+    struct program_list programs;
 
     t_command_line command_line;
 
@@ -233,6 +234,7 @@ enum shell_command
     NUMBER_OF_SHELL_COMMAND
 };
 
+/* configuration_parsing_program_field_load_function.c */
 uint8_t program_field_cmd_load_function(yaml_parser_t *parser, struct program_specification *program, yaml_event_t *event);
 uint8_t program_field_numprocs_load_function(yaml_parser_t *parser, struct program_specification *program, yaml_event_t *event);
 uint8_t program_field_autostart_load_function(yaml_parser_t *parser, struct program_specification *program, yaml_event_t *event);
@@ -249,6 +251,7 @@ uint8_t program_field_workingdir_load_function(yaml_parser_t *parser, struct pro
 uint8_t program_field_umask_load_function(yaml_parser_t *parser, struct program_specification *program, yaml_event_t *event);
 uint8_t program_field_log_load_function(yaml_parser_t *parser, struct program_specification *program, yaml_event_t *event);
 
+/* configuration_parsing.c */
 uint8_t init_program_list(struct program_list *program_list);
 uint8_t parse_config_file(uint8_t *file_name, struct program_list *program_list);
 uint8_t reload_config_file(uint8_t *file_name, struct program_list *program_list);
@@ -258,14 +261,32 @@ void free_linked_list_in_program_list(struct program_list *programs);
 void free_program_list(struct program_list *programs);
 void free_program_specification(struct program_specification *program);
 
+/* error.c */
+#define log_error(msg, file, func, line) \
+  do {                                   \
+    err_display(msg, file, func, line);  \
+    return (EXIT_FAILURE);               \
+  } while (0)
+
+void err_display(const char *msg, const char *file, const char *func,
+			uint32_t line);
+
+/* taskmaster.c */
 uint8_t taskmaster_shell(struct taskmaster *taskmaster);
 uint8_t init_taskmaster(struct taskmaster *taskmaster);
 void    free_taskmaster(struct taskmaster *taskmaster);
 
+/* server.c */
+#define UNINITIALIZED_FD (-42)
+#define FD_ERR (-1)
+uint8_t tm_server(struct taskmaster *taskmaster);
+
+/* execute_command_line.c */
 uint8_t *get_next_instruction(char *line, int32_t *id);
 uint8_t  separate_line_in_instruction(char *line, uint8_t **instructions);
 uint8_t  execute_command_line(struct taskmaster *taskmaster, char *line);
 
+/* shell_command.c */
 uint8_t  shell_command_status_function(struct taskmaster *taskmaster, uint8_t **arguments);
 uint8_t  shell_command_start_function(struct taskmaster *taskmaster, uint8_t **arguments);
 uint8_t  shell_command_stop_function(struct taskmaster *taskmaster, uint8_t **arguments);

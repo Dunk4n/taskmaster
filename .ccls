@@ -3,4 +3,5 @@ clang
 %h
 
 -Iinclude
+-Ilibft
 -D_GNU_SOURCE
