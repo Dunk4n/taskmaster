@@ -44,10 +44,39 @@ uint8_t (*const g_program_specification_field_load_function[NUMBER_OF_PROGRAM_SP
     program_field_log_load_function,
     };
 
+static void init_thread(const struct program_specification *pgm,
+                        struct thread_data *thrd) {
+    for (uint32_t i = 0; i < pgm->number_of_process; i++) {
+        thrd->rid = i;
+        thrd->restart_counter = pgm->start_retries;
+    }
+}
+
+/* If config says that process logs somewhere, init_log() open and store these
+ * files */
+static uint8_t init_log(struct program_specification *pgm) {
+    pgm->log.out = UNINITIALIZED_FD;
+    pgm->log.out = UNINITIALIZED_FD;
+
+    if (pgm->str_stdout) {
+        pgm->log.out = open(pgm->str_stdout, O_RDWR | O_CREAT | O_APPEND, 0755);
+        if (pgm->log.out == FD_ERR) { /* TODO: do something */
+            return EXIT_FAILURE;
+        }
+    }
+    if (pgm->str_stderr) {
+        pgm->log.err = open(pgm->str_stderr, O_RDWR | O_CREAT | O_APPEND, 0755);
+        if (pgm->log.err == FD_ERR) { /* TODO: do something */
+            return EXIT_FAILURE;
+        }
+    }
+    return EXIT_SUCCESS;
+}
+
 /**
 * This function set to the default value the structure program_specification
 */
-static uint8_t set_program_default_value(struct program_specification *program)
+static uint8_t initialize_pgm_config(struct program_specification *program)
     {
     if(program == NULL)
         {
@@ -90,6 +119,13 @@ static uint8_t set_program_default_value(struct program_specification *program)
     program->exit_codes_number = 1;
 
     program->global_status.global_status_struct_init = TRUE;
+
+    program->thrd = NULL;
+    program->thrd = (struct thread_data *)calloc(program->number_of_process,
+            sizeof(struct thread_data));
+    if (!program->thrd) return EXIT_FAILURE;
+    if (init_log(program)) return EXIT_FAILURE;
+    init_thread(program, program->thrd);
 
     return (EXIT_SUCCESS);
     }
@@ -218,7 +254,7 @@ static uint8_t add_new_program(struct program_list *program_list, uint8_t *progr
     if(program_tmp == NULL)
         return (EXIT_FAILURE);
 
-    if(set_program_default_value(program_tmp) != EXIT_SUCCESS)
+    if(initialize_pgm_config(program_tmp) != EXIT_SUCCESS)
         {
         free(program_tmp);
         program_tmp = NULL;
