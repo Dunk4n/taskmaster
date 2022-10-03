@@ -69,6 +69,8 @@ enum program_auto_restart_status
 # define PROGRAM_DEFAULT_EXIT_CODE (0)
 
 # define SHELL_PROMPT ("$> ")
+//# define NUMBER_OF_SECONDS_TO_WAIT_FOR_EXIT (300)
+# define NUMBER_OF_SECONDS_TO_WAIT_FOR_EXIT (5)
 
 /**
 * This enumeration represente all the posible attribute in the structure program_specification
@@ -210,15 +212,6 @@ struct taskmaster
     struct program_list programs;
 
     t_command_line command_line;
-
-    struct termios  termios;
-    struct termios  termios_save;
-
-    uint8_t         str_line[4096];
-    uint16_t        line_size;
-    uint16_t        pos_in_line;
-    int32_t         cursor_pos_x;
-    int32_t         cursor_pos_y;
 };
 
 /**
@@ -259,6 +252,7 @@ uint8_t reload_config_file(uint8_t *file_name, struct program_list *program_list
 void display_program_specification(struct program_specification *program);
 void display_program_list(struct program_list *programs);
 void free_linked_list_in_program_list(struct program_list *programs);
+void stop_and_wait_all_the_program(struct program_list *programs);
 void free_program_list(struct program_list *programs);
 void free_program_specification(struct program_specification *program);
 

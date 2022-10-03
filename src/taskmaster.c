@@ -65,12 +65,6 @@ uint8_t init_taskmaster(struct taskmaster *taskmaster)
     memset(&taskmaster->global_status, 0, sizeof(taskmaster->global_status));
     taskmaster->global_status.global_status_exit = FALSE;
 
-    memset(taskmaster->str_line, 0, LINE_SIZE);
-    taskmaster->line_size = 0;
-    taskmaster->pos_in_line = 0;
-    taskmaster->cursor_pos_x = 0;
-    taskmaster->cursor_pos_y = 0;
-
     taskmaster->command_line.global_status.global_status_struct_init = FALSE;
     if(init_command_line(&(taskmaster->command_line)) != EXIT_SUCCESS)
         return (EXIT_FAILURE);
@@ -86,6 +80,50 @@ uint8_t init_taskmaster(struct taskmaster *taskmaster)
     return (EXIT_SUCCESS);
     }
 
+void    stop_and_wait_all_the_program(struct program_list *programs)
+    {
+    if(programs == NULL)
+        return;
+    if(programs->global_status.global_status_struct_init == FALSE)
+        return;
+
+    struct program_specification *actual_program;
+    uint32_t                      number_of_seconds;
+    uint32_t                      tmp_number_of_program;
+
+    actual_program        = NULL;
+    number_of_seconds     = 0;
+    tmp_number_of_program = 0;
+
+    actual_program = programs->program_linked_list;
+    while(actual_program != NULL)
+        {
+        if(actual_program->global_status.global_status_struct_init == FALSE)
+            {
+            actual_program = NULL;
+            break;
+            }
+
+        actual_program->program_state.need_to_be_removed = TRUE;
+
+        actual_program = actual_program->next;
+        }
+
+    //TODO wait for all the program to stop
+    tmp_number_of_program = programs->number_of_program;
+    number_of_seconds     = 0;
+    while(programs->number_of_program != 0 && number_of_seconds < NUMBER_OF_SECONDS_TO_WAIT_FOR_EXIT)
+        {
+        sleep(1);
+        if(programs->number_of_program > 0)
+            {
+            //TODO during wait display status of all the program or number of program still up?
+            ft_printf("Number of program still running (%u/%u)\n", programs->number_of_program, tmp_number_of_program);
+            }
+        number_of_seconds++;
+        }
+    }
+
 void free_taskmaster(struct taskmaster *taskmaster)
     {
     if(taskmaster == NULL)
@@ -93,12 +131,9 @@ void free_taskmaster(struct taskmaster *taskmaster)
     if(taskmaster->global_status.global_status_struct_init == FALSE)
         return;
 
-    memset(taskmaster->str_line, 0, LINE_SIZE);
-    taskmaster->line_size = 0;
-    taskmaster->pos_in_line = 0;
-    taskmaster->cursor_pos_x = 0;
-    taskmaster->cursor_pos_y = 0;
-
+    //TODO set all the program to remove
+    //TODO wait for all the program to stop
+    stop_and_wait_all_the_program(&(taskmaster->programs));
     free_program_list(&(taskmaster->programs));
 
     free_command_line(&(taskmaster->command_line));
