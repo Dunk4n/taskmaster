@@ -521,11 +521,11 @@ uint8_t shell_command_exit_function(struct taskmaster *taskmaster, uint8_t **arg
     if(arguments[0] == NULL)
         return (EXIT_FAILURE);
 
-    struct program_specification *actual_program;
-    uint32_t                      tmp_number_of_program;
+    /* struct program_specification *actual_program; */
+    /* uint32_t                      tmp_number_of_program; */
 
-    actual_program        = NULL;
-    tmp_number_of_program = 0;
+    /* actual_program        = NULL; */
+    /* tmp_number_of_program = 0; */
 
     if(arguments[1] != NULL)
         {
