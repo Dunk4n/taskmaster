@@ -111,30 +111,31 @@ struct program_specification
 {
     struct
         {
-        // FIRST_BIT     Structure is init          1 = Y / 0 = N
+        // FIRST_BIT     Structure is init           1 = Y / 0 = N
         uint8_t global_status_struct_init             : 1;
 
-        // SECOND_BIT     Configuration is loaded          1 = Y / 0 = N
+        // SECOND_BIT     Configuration is loaded    1 = Y / 0 = N
         uint8_t global_status_conf_loaded             : 1;
 
-        // THIRD_BIT    Configuration is reloading 1 = Y / 0 = N
+        // THIRD_BIT    Configuration is reloading   1 = Y / 0 = N
         uint8_t global_status_configuration_reloading : 1;
-
-        // FOURTH_BIT     Need to restart            1 = Y / 0 = N
-        uint8_t global_status_need_to_restart         : 1;
-
-        //                Need to stop               1 = Y / 0 = N
-        uint8_t global_status_need_to_stop            : 1;
-
-        //                Need to start              1 = Y / 0 = N
-        uint8_t global_status_need_to_start           : 1;
-
-        //                Need to remove             1 = Y / 0 = N
-        uint8_t global_status_need_to_remove          : 1;
-
-        //                Started                    1 = Y / 0 = N
-        uint8_t global_status_started                 : 1;
         } global_status;
+
+    struct
+        {
+        uint8_t started            : 1;
+
+        uint8_t need_to_restart    : 1;
+        uint8_t restarting         : 1;
+
+        uint8_t need_to_stop       : 1;
+        uint8_t stoping            : 1;
+
+        uint8_t need_to_start      : 1;
+        uint8_t starting           : 1;
+
+        uint8_t need_to_be_removed : 1;
+        } program_state;
 
     uint8_t                          *str_name;
     size_t                            name_length;

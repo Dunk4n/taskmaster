@@ -163,13 +163,13 @@ uint8_t reload_config_file(uint8_t *file_name, struct program_list *program_list
                         actual_program_original_list->restart_tmp_program = NULL;
 
                         actual_program_original_list->global_status.global_status_configuration_reloading = FALSE;
-                        actual_program_original_list->global_status.global_status_need_to_restart = FALSE;
+                        actual_program_original_list->program_state.need_to_restart = FALSE;
                         }
 
                     if(is_important_value_changed(actual_program_original_list, actual_program) == TRUE)
                         {
                         actual_program_original_list->global_status.global_status_configuration_reloading = TRUE;
-                        actual_program_original_list->global_status.global_status_need_to_restart = TRUE;
+                        actual_program_original_list->program_state.need_to_restart = TRUE;
                         actual_program_original_list->restart_tmp_program = actual_program;
 
                         actual_program = actual_program->next;
@@ -209,7 +209,7 @@ uint8_t reload_config_file(uint8_t *file_name, struct program_list *program_list
                 }
 
             if(cnt_new_list >= list_length)
-                actual_program_original_list->global_status.global_status_need_to_remove = TRUE;
+                actual_program_original_list->program_state.need_to_be_removed = TRUE;
 
             actual_program_original_list = actual_program_original_list->next;
             cnt++;

@@ -87,7 +87,7 @@ static uint8_t initialize_pgm_config(struct program_specification *program)
     program->global_status.global_status_struct_init             = FALSE;
     program->global_status.global_status_conf_loaded             = FALSE;
     program->global_status.global_status_configuration_reloading = FALSE;
-    program->global_status.global_status_need_to_restart         = FALSE;
+    program->program_state.need_to_restart         = FALSE;
 
     program->str_name = NULL;
     program->name_length = 0;
@@ -153,7 +153,7 @@ static uint8_t reset_program_default_value_without_name(struct program_specifica
     program->global_status.global_status_struct_init             = FALSE;
     program->global_status.global_status_conf_loaded             = FALSE;
     program->global_status.global_status_configuration_reloading = FALSE;
-    program->global_status.global_status_need_to_restart         = FALSE;
+    program->program_state.need_to_restart         = FALSE;
 
     free(program->str_start_command);
     program->str_start_command = NULL;
@@ -748,7 +748,7 @@ void free_program_specification(struct program_specification *program)
     program->global_status.global_status_struct_init             = FALSE;
     program->global_status.global_status_conf_loaded             = FALSE;
     program->global_status.global_status_configuration_reloading = FALSE;
-    program->global_status.global_status_need_to_restart         = FALSE;
+    program->program_state.need_to_restart         = FALSE;
 
     free(program->str_name);
     program->str_name = NULL;
@@ -895,27 +895,27 @@ void display_program_specification(struct program_specification *program)
     else
         printf("The structure is "YELB"NOT"CRESET" RELOADING\n");
 
-    if(program->global_status.global_status_need_to_restart == TRUE)
+    if(program->program_state.need_to_restart == TRUE)
         printf("The program need to RESTART\n");
     else
         printf("The program does "YELB"NOT"CRESET" need to RESTART\n");
 
-    if(program->global_status.global_status_need_to_stop == TRUE)
+    if(program->program_state.need_to_stop == TRUE)
         printf("The program need to STOP\n");
     else
         printf("The program does "YELB"NOT"CRESET" need to STOP\n");
 
-    if(program->global_status.global_status_need_to_start == TRUE)
+    if(program->program_state.need_to_start == TRUE)
         printf("The program need to START\n");
     else
         printf("The program does "YELB"NOT"CRESET" need to START\n");
 
-    if(program->global_status.global_status_need_to_remove == TRUE)
+    if(program->program_state.need_to_be_removed == TRUE)
         printf("The program need to be REMOVED\n");
     else
         printf("The program does "YELB"NOT"CRESET" need to be REMOVED\n");
 
-    if(program->global_status.global_status_started == TRUE)
+    if(program->program_state.started == TRUE)
         printf("The program is STARTED\n");
     else
         printf("The program is "YELB"NOT"CRESET" STARTED\n");
