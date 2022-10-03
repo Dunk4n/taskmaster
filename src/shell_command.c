@@ -143,16 +143,16 @@ uint8_t  shell_command_start_function(struct taskmaster *taskmaster, uint8_t **a
                 {
                 if(strcmp((char *) arguments[cnt], (char *) actual_program->str_name) == 0)
                     {
-                    //TODO check if program can be started ex: global_status_need_to_stop
+                    //TODO check if program can be started ex: need_to_stop
                     if(actual_program->global_status.global_status_conf_loaded == TRUE && actual_program->global_status.global_status_configuration_reloading == FALSE)
                         {
-                        if(actual_program->global_status.global_status_started == FALSE)
+                        if(actual_program->program_state.started == FALSE)
                             {
                             //TODO add in file log start of arguments[cnt]
                             //TODO start actual_program
                             ft_printf(BOLD"Start program ["COLOR_RESET"%s"BOLD"]"COLOR_RESET":\n\n", arguments[cnt]);
 
-                            actual_program->global_status.global_status_need_to_start = TRUE;
+                            actual_program->program_state.need_to_start = TRUE;
 
                             break;
                             }
