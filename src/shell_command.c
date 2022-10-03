@@ -44,7 +44,7 @@ uint8_t  shell_command_status_function(struct taskmaster *taskmaster, uint8_t **
                 ft_printf("    [%s]\n", actual_program->str_name);
                 }
 
-            actual_program = actual_program->next_program;
+            actual_program = actual_program->next;
             }
 
         if(pthread_mutex_unlock(&(taskmaster->programs.mutex_program_linked_list)) != 0)
@@ -78,7 +78,7 @@ uint8_t  shell_command_status_function(struct taskmaster *taskmaster, uint8_t **
                     }
                 }
 
-            actual_program = actual_program->next_program;
+            actual_program = actual_program->next;
             }
 
         if(actual_program == NULL)
@@ -166,7 +166,7 @@ uint8_t  shell_command_start_function(struct taskmaster *taskmaster, uint8_t **a
                     }
                 }
 
-            actual_program = actual_program->next_program;
+            actual_program = actual_program->next;
             }
 
         if(actual_program == NULL)

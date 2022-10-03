@@ -60,15 +60,13 @@ static uint8_t init_log(struct program_specification *pgm) {
 
     if (pgm->str_stdout) {
         pgm->log.out = open(pgm->str_stdout, O_RDWR | O_CREAT | O_APPEND, 0755);
-        if (pgm->log.out == FD_ERR) { /* TODO: do something */
-            return EXIT_FAILURE;
-        }
+        if (pgm->log.out == FD_ERR)
+            log_error("open str_stdout failed", __FILE__, __func__, __LINE__);
     }
     if (pgm->str_stderr) {
         pgm->log.err = open(pgm->str_stderr, O_RDWR | O_CREAT | O_APPEND, 0755);
-        if (pgm->log.err == FD_ERR) { /* TODO: do something */
-            return EXIT_FAILURE;
-        }
+        if (pgm->log.err == FD_ERR)
+            log_error("open str_stderr failed", __FILE__, __func__, __LINE__);
     }
     return EXIT_SUCCESS;
 }
@@ -123,7 +121,9 @@ static uint8_t initialize_pgm_config(struct program_specification *program)
     program->thrd = NULL;
     program->thrd = (struct thread_data *)calloc(program->number_of_process,
             sizeof(struct thread_data));
-    if (!program->thrd) return EXIT_FAILURE;
+    if (!program->thrd)
+        log_error("unable to calloc program->thrd",
+                __FILE__, __func__, __LINE__);
     if (init_log(program)) return EXIT_FAILURE;
     init_thread(program, program->thrd);
 

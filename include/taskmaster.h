@@ -70,6 +70,9 @@ enum program_auto_restart_status
 
 # define SHELL_PROMPT ("$> ")
 
+#define UNINITIALIZED_FD (-42)
+#define FD_ERR (-1)
+
 /**
 * This enumeration represente all the posible attribute in the structure program_specification
 */
@@ -276,10 +279,8 @@ uint8_t taskmaster_shell(struct taskmaster *taskmaster);
 uint8_t init_taskmaster(struct taskmaster *taskmaster);
 void    free_taskmaster(struct taskmaster *taskmaster);
 
-/* server.c */
-#define UNINITIALIZED_FD (-42)
-#define FD_ERR (-1)
-uint8_t tm_server(struct taskmaster *taskmaster);
+/* tm_job_control.c */
+uint8_t tm_job_control(struct taskmaster *taskmaster);
 
 /* execute_command_line.c */
 uint8_t *get_next_instruction(char *line, int32_t *id);
