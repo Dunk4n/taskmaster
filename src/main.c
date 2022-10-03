@@ -20,7 +20,7 @@ int main(int argc, char **argv) {
                   __func__, __LINE__);
     }
 
-    if (tm_job_control(&taskmaster)) goto exit_error;
+    if (tm_job_control(&taskmaster.programs)) goto exit_error;
 
     if (taskmaster_shell(&taskmaster) != EXIT_SUCCESS) goto exit_error;
 

@@ -855,6 +855,8 @@ void free_program_list(struct program_list *programs)
 
     programs->global_status.global_status_conf_loaded = FALSE;
 
+    pthread_attr_destroy(&programs->attr);
+
     free_linked_list_in_program_list(programs);
 
     if(pthread_mutex_destroy(&(programs->mutex_program_linked_list)) != 0)
@@ -1071,6 +1073,13 @@ uint8_t init_program_list(struct program_list *program_list)
     program_list->last_program_linked_list = NULL;
     program_list->number_of_program        = 0;
     program_list->program_linked_list      = NULL;
+
+    if (pthread_attr_init(&program_list->attr))
+        log_error("pthread_attr_init error", __FILE__, __func__, __LINE__);
+    if (pthread_attr_setdetachstate(&program_list->attr,
+                                    PTHREAD_CREATE_DETACHED))
+        log_error("pthread_attr_setdetachstate error", __FILE__, __func__,
+                  __LINE__);
 
     if(pthread_mutex_init(&(program_list->mutex_program_linked_list), NULL) != 0)
         return (EXIT_FAILURE);

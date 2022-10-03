@@ -195,6 +195,9 @@ struct program_list
         uint8_t global_status_conf_loaded             : 1;
         } global_status;
 
+    pthread_attr_t attr;
+    pthread_t master_thread;
+
     pthread_mutex_t               mutex_program_linked_list;
     struct program_specification *program_linked_list;
     struct program_specification *last_program_linked_list;
@@ -281,7 +284,7 @@ uint8_t init_taskmaster(struct taskmaster *taskmaster);
 void    free_taskmaster(struct taskmaster *taskmaster);
 
 /* tm_job_control.c */
-uint8_t tm_job_control(struct taskmaster *taskmaster);
+uint8_t tm_job_control(struct program_list *taskmaster);
 
 /* execute_command_line.c */
 uint8_t *get_next_instruction(char *line, int32_t *id);
