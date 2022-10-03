@@ -522,11 +522,9 @@ uint8_t shell_command_exit_function(struct taskmaster *taskmaster, uint8_t **arg
         return (EXIT_FAILURE);
 
     struct program_specification *actual_program;
-    uint32_t                      number_of_seconds;
     uint32_t                      tmp_number_of_program;
 
     actual_program        = NULL;
-    number_of_seconds     = 0;
     tmp_number_of_program = 0;
 
     if(arguments[1] != NULL)
