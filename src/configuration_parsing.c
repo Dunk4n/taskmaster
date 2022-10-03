@@ -56,7 +56,7 @@ static void init_thread(const struct program_specification *pgm,
  * files */
 static uint8_t init_log(struct program_specification *pgm) {
     pgm->log.out = UNINITIALIZED_FD;
-    pgm->log.out = UNINITIALIZED_FD;
+    pgm->log.err = UNINITIALIZED_FD;
 
     if (pgm->str_stdout) {
         pgm->log.out = open(pgm->str_stdout, O_RDWR | O_CREAT | O_APPEND, 0755);
@@ -85,7 +85,16 @@ static uint8_t initialize_pgm_config(struct program_specification *program)
     program->global_status.global_status_struct_init             = FALSE;
     program->global_status.global_status_conf_loaded             = FALSE;
     program->global_status.global_status_configuration_reloading = FALSE;
-    program->program_state.need_to_restart         = FALSE;
+
+    memset(&program->program_state, 0, sizeof(program->program_state));
+    program->program_state.started = FALSE;
+    program->program_state.need_to_restart = FALSE;
+    program->program_state.restarting = FALSE;
+    program->program_state.need_to_stop = FALSE;
+    program->program_state.stoping = FALSE;
+    program->program_state.need_to_start = FALSE;
+    program->program_state.starting = FALSE;
+    program->program_state.need_to_be_removed = FALSE;
 
     program->str_name = NULL;
     program->name_length = 0;
@@ -849,7 +858,6 @@ void free_program_list(struct program_list *programs)
     {
     if(programs == NULL)
         return;
-
     if(programs->global_status.global_status_struct_init == FALSE)
         return;
 
