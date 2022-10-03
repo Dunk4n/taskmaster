@@ -6,6 +6,10 @@ INC_DIRECTORY := ./include/
 LIB_DIRECTORY := ./lib/
 BUILD_DIRECTORY := ./build/
 LIB_FT_DIR	=	./libft/
+TEST_DIRECTORY := ./test
+CONFIG_DIRECTORY := $(TEST_DIRECTORY)/config
+SCRIPT_DIRECTORY := $(TEST_DIRECTORY)/scripts
+SRC_TEST_DIRECTORY := $(TEST_DIRECTORY)/srcs
 
 ### YAML ###
 YAML_SRC := ./yaml-0.2.5
@@ -49,6 +53,17 @@ san: CFLAGS := -g -O1\
 san: LDFLAGS += $(CFLAGS)
 san: $(YAML) $(NAME)
 
+test: $(YAML) $(NAME)
+	@bash $(SCRIPT_DIRECTORY)/build_many_daemons.sh
+	@./$(NAME) $(CONFIG_DIRECTORY)/config_3.yaml
+
+retest: $(YAML) $(NAME)
+	@$(MAKE) -sC $(SRC_TEST_DIRECTORY) fclean
+	@$(MAKE) -s test
+
+kill: $(YAML) $(NAME)
+	@bash $(SCRIPT_DIRECTORY)/shutdown_all_daemons.sh
+
 $(YAML):
 	@wget -c http://pyyaml.org/download/libyaml/$(YAMLPACKAGE)
 	@tar -xf $(YAMLPACKAGE)
@@ -62,13 +77,11 @@ $(YAML):
 	@$(MAKE) -s -C $(YAML_SRC) install
 	@rm -Rf $(YAML_SRC)
 
-$(NAME): options $(OBJ)
+$(NAME): $(OBJ)
+	@echo $(call OPTIONS, $(B_WHITE))
 	@$(MAKE) -s -C $(LIB_FT_DIR) --no-print-directory
 	@echo "$(GREEN)  BUILD$(RESET)    $(H_WHITE)$@$(RESET)"
 	@$(CC) $(LDFLAGS) -o $@ $(OBJ) $(LDLIBS)
-
-options:
-	@echo $(call OPTIONS, $(B_WHITE))
 
 $(BUILD_DIRECTORY)/%.o: %.c
 	@mkdir -p $(@D)
@@ -111,6 +124,9 @@ HELP =\
 		"  debug: debug mode. add DEVELOPEMENT macro and '-g' to CFLAGS\n"\
 		"  san:   fsanitize mode. add DEVELOPEMENT macro, '-g'\n"\
 		"         and fsanitize options to CFLAGS\n\n"\
+		"  test:  build testing daemons and run $(NAME)\n"\
+		"  retest:rebuild testing daemons and run $(NAME)\n"\
+		"  clean/fclean/re: you know, babe\n"\
 		"Basic setup :\n "\
 		$(2)\
 		"$(1)-----------------$(RESET)"
