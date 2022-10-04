@@ -18,6 +18,10 @@ void err_display(const char *msg, const char *file, const char *func,
 #endif
 
 #ifdef PRODUCTION
+	(void)msg;
+	(void)file;
+	(void)func;
+	(void)line;
   fprintf(stderr, "" BRED "ERROR" CRESET "\n");
 #endif
 }
