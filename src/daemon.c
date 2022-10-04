@@ -4,7 +4,7 @@ uint8_t daemon_accept_new_connection(struct taskmaster *taskmaster)
     {
     if(taskmaster == NULL)
         return (EXIT_FAILURE);
-    if(taskmaster->global_status.global_status_struct_init == TRUE)
+    if(taskmaster->global_status.global_status_struct_init == FALSE)
         return (EXIT_FAILURE);
     if(taskmaster->global_status.global_status_start_as_client == TRUE)
         return (EXIT_FAILURE);
@@ -20,6 +20,45 @@ uint8_t daemon_accept_new_connection(struct taskmaster *taskmaster)
 
         //TODO error msg daemon can not accept new client
         return (EXIT_FAILURE);
+        }
+
+    return (EXIT_SUCCESS);
+    }
+
+uint8_t recv_command_from_client(struct taskmaster *taskmaster)
+    {
+    if(taskmaster == NULL)
+        return (EXIT_FAILURE);
+    if(taskmaster->global_status.global_status_struct_init == FALSE)
+        return (EXIT_FAILURE);
+    if(taskmaster->global_status.global_status_start_as_client == TRUE)
+        return (EXIT_FAILURE);
+    if(taskmaster->global_status.global_status_start_as_daemon == FALSE)
+        return (EXIT_FAILURE);
+
+    uint8_t buffer[LINE_SIZE + 1];
+
+    buffer[0]         = NIL;
+    buffer[LINE_SIZE] = NIL;
+
+    while(taskmaster->global_status.global_status_exit == FALSE)
+        {
+        if(daemon_accept_new_connection(taskmaster) != EXIT_SUCCESS)
+            return (EXIT_FAILURE);
+
+        while(taskmaster->global_status.global_status_exit == FALSE)
+            {
+            if(recv_text(taskmaster, buffer) != EXIT_SUCCESS)
+                break;
+
+            if(execute_command_line(taskmaster, (char *) buffer) != EXIT_SUCCESS)
+                {
+                break;
+                }
+
+            if(send_text(taskmaster, END_OF_MESSAGE_MARKER) != EXIT_SUCCESS)
+                return (EXIT_FAILURE);
+            }
         }
 
     return (EXIT_SUCCESS);

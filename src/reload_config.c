@@ -54,9 +54,6 @@ static uint8_t is_important_value_changed(struct program_specification *first_pr
     if(first_program->umask != second_program->umask)
         return (TRUE);
 
-    if(first_program->e_log != second_program->e_log)
-        return (TRUE);
-
     return (FALSE);
     }
 
