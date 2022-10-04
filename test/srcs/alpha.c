@@ -33,6 +33,7 @@ int main(int ac, char **av, char **env) {
     for (int i = 0; av[i]; i++)
       printf("%s\n", av[i]);
   }
+  fflush(stdout);
   while (1) {
     sleep(SLEEP_TIME);
     write(STDOUT_FILENO, msg_out, len_out);
