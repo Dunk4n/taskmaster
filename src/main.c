@@ -50,7 +50,8 @@ int main(int argc, char **argv) {
                     __func__, __LINE__);
         }
 
-        //if (tm_job_control(&taskmaster.programs)) goto exit_error;
+        /* display_program_list(&taskmaster.programs); */
+        if (tm_job_control(&taskmaster.programs)) goto exit_error;
         }
 
     if(taskmaster.global_status.global_status_start_as_daemon == TRUE)

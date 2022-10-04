@@ -15,6 +15,7 @@
 # include <sys/socket.h>
 # include <netdb.h>
 # include <errno.h>
+# include <sys/wait.h>
 # include "yaml.h"
 # include "minishell.h"
 
@@ -78,7 +79,7 @@ enum program_auto_restart_status
 
 #define UNINITIALIZED_FD (-42)
 #define FD_ERR (-1)
-
+#define TASKMASTER_LOGFILE "./tm.log"
 /**
 * This enumeration represente all the posible attribute in the structure program_specification
 */
@@ -183,6 +184,9 @@ struct program_specification
       uint8_t exit_status; /* value of exit from the current process */
     } *thrd; /* array of thread_data. One thread per processus */
 
+    char **argv; /* name of program and its arguments in the form of argv */
+
+    struct program_list *node;
     /* Linked list */
     struct program_specification *next;
 };
@@ -208,6 +212,8 @@ struct program_list
     struct program_specification *program_linked_list;
     struct program_specification *last_program_linked_list;
     uint32_t                      number_of_program;
+
+    int32_t tm_fd_log;
 };
 
 struct taskmaster
@@ -273,11 +279,18 @@ void free_program_list(struct program_list *programs);
 void free_program_specification(struct program_specification *program);
 
 /* error.c */
-#define log_error(msg, file, func, line) \
-  do {                                   \
-    err_display(msg, file, func, line);  \
-    return (EXIT_FAILURE);               \
-  } while (0)
+#define log_error(msg, file, func, line)    \
+    do {                                    \
+        err_display(msg, file, func, line); \
+        return (EXIT_FAILURE);              \
+    } while (0)
+
+#define exit_thrd(pgm, rid, msg, file, func, line) \
+    do {                                      \
+        exit_thread(pgm, rid);                \
+        err_display(msg, file, func, line);   \
+        return (NULL);                        \
+    } while (0)
 
 void err_display(const char *msg, const char *file, const char *func,
 			uint32_t line);
@@ -288,7 +301,18 @@ uint8_t init_taskmaster(struct taskmaster *taskmaster);
 void    free_taskmaster(struct taskmaster *taskmaster);
 
 /* tm_job_control.c */
+#ifdef DEVELOPEMENT
+#define debug_thrd()                                              \
+    do {                                                          \
+        printf("tid: %lu, rid: %d, pid: %d\n", pgm->thrd[id].tid, \
+               pgm->thrd[id].rid, pgm->thrd[id].pid);             \
+    } while (0)
+#else
+#define debug_thrd()
+#endif
+
 uint8_t tm_job_control(struct program_list *taskmaster);
+void exit_thread(struct program_specification *pgm, int32_t rid);
 
 /* execute_command_line.c */
 uint8_t *get_next_instruction(char *line, int32_t *id);
