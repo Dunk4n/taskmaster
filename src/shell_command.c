@@ -13,10 +13,10 @@ void    display_status_of_program(struct program_specification *program)
     if(program->str_name == NULL)
         return;
 
-    uint32_t cnt;
+    //uint32_t cnt;
     uint32_t number_of_proccess_alive;
 
-    cnt = 0;
+    //cnt = 0;
     number_of_proccess_alive = 0;
 
     if(program->program_state.started == TRUE)
@@ -56,16 +56,16 @@ void    display_status_of_program(struct program_specification *program)
         }
 
     number_of_proccess_alive = 0;
-    if(program->thrd != NULL)
-        {
-        cnt = 0;
-        while(cnt < program->number_of_process)
-            {
-            if(program->thrd[cnt].pid != 0)
-                number_of_proccess_alive++;
-            cnt++;
-            }
-        }
+    //TODO if(program->thrd != NULL)
+    //    {
+    //    cnt = 0;
+    //    while(cnt < program->number_of_process)
+    //        {
+    //        if(program->thrd[cnt].pid != 0)
+    //            number_of_proccess_alive++;
+    //        cnt++;
+    //        }
+    //    }
 
     ft_printf("    Number of job alive (%u/%u)\n", number_of_proccess_alive, program->number_of_process);
     }
@@ -520,12 +520,6 @@ uint8_t shell_command_exit_function(struct taskmaster *taskmaster, uint8_t **arg
         return (EXIT_FAILURE);
     if(arguments[0] == NULL)
         return (EXIT_FAILURE);
-
-    /* struct program_specification *actual_program; */
-    /* uint32_t                      tmp_number_of_program; */
-
-    /* actual_program        = NULL; */
-    /* tmp_number_of_program = 0; */
 
     if(arguments[1] != NULL)
         {

@@ -12,6 +12,9 @@
 # include <string.h>
 # include <unistd.h>
 # include <term.h>
+# include <sys/socket.h>
+# include <netdb.h>
+# include <errno.h>
 # include "yaml.h"
 # include "minishell.h"
 
@@ -70,7 +73,8 @@ enum program_auto_restart_status
 
 # define SHELL_PROMPT ("$> ")
 //# define NUMBER_OF_SECONDS_TO_WAIT_FOR_EXIT (300)
-# define NUMBER_OF_SECONDS_TO_WAIT_FOR_EXIT (5)
+# define NUMBER_OF_SECONDS_TO_WAIT_FOR_EXIT (1)
+# define END_OF_MESSAGE_MARKER ("\03END_MESSAGE")
 
 #define UNINITIALIZED_FD (-42)
 #define FD_ERR (-1)
@@ -212,12 +216,18 @@ struct taskmaster
     struct {
         uint8_t global_status_struct_init      : 1; /* structure is init */
         uint8_t global_status_exit             : 1; /* exit the program */
+        uint8_t global_status_start_as_daemon  : 1; /* start as a daemon */
+        uint8_t global_status_start_as_client  : 1; /* start as a client */
     } global_status;
 
     /* node with head, tail & data of program list */
     struct program_list programs;
 
     t_command_line command_line;
+
+    int                socket;
+    int                client_socket;
+    struct sockaddr_in addr;
 };
 
 /**
@@ -292,5 +302,9 @@ uint8_t  shell_command_stop_function(struct taskmaster *taskmaster, uint8_t **ar
 uint8_t  shell_command_restart_function(struct taskmaster *taskmaster, uint8_t **arguments);
 uint8_t  shell_command_reload_conf_function(struct taskmaster *taskmaster, uint8_t **arguments);
 uint8_t  shell_command_exit_function(struct taskmaster *taskmaster, uint8_t **arguments);
+
+uint8_t init_taskmaster_daemon(struct taskmaster *taskmaster);
+uint8_t init_taskmaster_client(struct taskmaster *taskmaster);
+uint8_t send_command_line_to_daemon(struct taskmaster *taskmaster, char *line);
 
 #endif

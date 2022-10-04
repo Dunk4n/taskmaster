@@ -35,11 +35,23 @@ uint8_t taskmaster_shell(struct taskmaster *taskmaster)
             return (EXIT_FAILURE);
             }
 
-        if(execute_command_line(taskmaster, line) != EXIT_SUCCESS)
+        if(taskmaster->global_status.global_status_start_as_client == TRUE)
             {
-            free(line);
-            line = NULL;
-            return (EXIT_FAILURE);
+            if(send_command_line_to_daemon(taskmaster, line) != EXIT_SUCCESS)
+                {
+                free(line);
+                line = NULL;
+                return (EXIT_FAILURE);
+                }
+            }
+        else
+            {
+            if(execute_command_line(taskmaster, line) != EXIT_SUCCESS)
+                {
+                free(line);
+                line = NULL;
+                return (EXIT_FAILURE);
+                }
             }
 
         free(line);
@@ -55,24 +67,48 @@ uint8_t init_taskmaster(struct taskmaster *taskmaster)
         return (EXIT_FAILURE);
     if(taskmaster->global_status.global_status_struct_init == TRUE)
         return (EXIT_FAILURE);
+    if(taskmaster->global_status.global_status_start_as_daemon == TRUE && taskmaster->global_status.global_status_start_as_client == TRUE)
+        return (EXIT_FAILURE);
 
-    /* char *str_term_value; */
-
-    /* str_term_value = NULL; */
-
-    taskmaster->programs.global_status.global_status_struct_init = FALSE;
-
-    memset(&taskmaster->global_status, 0, sizeof(taskmaster->global_status));
     taskmaster->global_status.global_status_exit = FALSE;
 
-    taskmaster->command_line.global_status.global_status_struct_init = FALSE;
-    if(init_command_line(&(taskmaster->command_line)) != EXIT_SUCCESS)
-        return (EXIT_FAILURE);
+    taskmaster->socket = -1;
+    taskmaster->client_socket = -1;
 
-    if(init_program_list(&(taskmaster->programs)) != EXIT_SUCCESS)
+    taskmaster->command_line.global_status.global_status_struct_init = FALSE;
+    if(taskmaster->global_status.global_status_start_as_daemon == FALSE)
         {
-        free_command_line(&(taskmaster->command_line));
-        return (EXIT_FAILURE);
+        if(init_command_line(&(taskmaster->command_line)) != EXIT_SUCCESS)
+            return (EXIT_FAILURE);
+        }
+
+    taskmaster->programs.global_status.global_status_struct_init = FALSE;
+    if(taskmaster->global_status.global_status_start_as_client == FALSE)
+        {
+        if(init_program_list(&(taskmaster->programs)) != EXIT_SUCCESS)
+            {
+            free_command_line(&(taskmaster->command_line));
+            return (EXIT_FAILURE);
+            }
+        }
+
+    if(taskmaster->global_status.global_status_start_as_daemon == TRUE)
+        {
+        if(init_taskmaster_daemon(taskmaster) != EXIT_SUCCESS)
+            {
+            free_program_list(&(taskmaster->programs));
+            free_command_line(&(taskmaster->command_line));
+            return (EXIT_FAILURE);
+            }
+        }
+    else if(taskmaster->global_status.global_status_start_as_client == TRUE)
+        {
+        if(init_taskmaster_client(taskmaster) != EXIT_SUCCESS)
+            {
+            free_program_list(&(taskmaster->programs));
+            free_command_line(&(taskmaster->command_line));
+            return (EXIT_FAILURE);
+            }
         }
 
     taskmaster->global_status.global_status_struct_init = TRUE;
@@ -137,6 +173,11 @@ void free_taskmaster(struct taskmaster *taskmaster)
     free_program_list(&(taskmaster->programs));
 
     free_command_line(&(taskmaster->command_line));
+
+    if(taskmaster->socket != -1)
+        close(taskmaster->socket);
+    if(taskmaster->client_socket != -1)
+        close(taskmaster->client_socket);
 
     taskmaster->programs.global_status.global_status_struct_init = FALSE;
     }

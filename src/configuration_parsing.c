@@ -672,14 +672,11 @@ static uint8_t parse_config_stream_event(yaml_parser_t *parser, struct program_l
 uint8_t parse_config_file(uint8_t *file_name, struct program_list *program_list)
     {
     if(file_name == NULL)
-        {
         return (EXIT_FAILURE);
-        }
-
     if(program_list == NULL)
-        {
         return (EXIT_FAILURE);
-        }
+    if(program_list->global_status.global_status_struct_init == FALSE)
+        return (EXIT_FAILURE);
 
     FILE          *file;
     yaml_parser_t  parser;

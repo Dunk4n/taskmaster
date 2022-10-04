@@ -4,13 +4,13 @@
 #include <term.h>
 #include "minishell.h"
 
-void	get_cursor_position(int *col, int *row)
+void    get_cursor_position(int *col, int *row)
 {
-	char	buff[16];
-	char	*term;
-	size_t	i;
-	ssize_t	size;
-	int		nb;
+    char     buff[16];
+    char    *term;
+    size_t   i;
+    ssize_t  size;
+    int      nb;
 
     i = 0;
     while(i < 16)
@@ -22,6 +22,8 @@ void	get_cursor_position(int *col, int *row)
     while (nb < 20 && (*col < 0 || *row < 0))
         {
         term = tgetstr("u7", NULL);
+        if(term == NULL)
+            return;
         write(1, term, ft_strlen(term));
         if ((size = read(0, buff, 15)) < 0)
             size = 0;

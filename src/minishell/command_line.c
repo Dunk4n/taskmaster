@@ -1,9 +1,9 @@
 #include <unistd.h>
 #include "minishell.h"
 
-static int	init_term(t_command_line *command_line)
+static int  init_term(t_command_line *command_line)
     {
-    char	*term_name;
+    char    *term_name;
 
     if (!(term_name = getenv("TERM")))
         return (0);
@@ -38,14 +38,14 @@ void    free_command_line(t_command_line *command_line)
     command_line->global_status.global_status_struct_init = FALSE;
     }
 
-uint8_t		init_command_line(t_command_line *command_line)
+uint8_t init_command_line(t_command_line *command_line)
     {
     if(command_line == NULL)
         return (EXIT_FAILURE);
     if(command_line->global_status.global_status_struct_init == TRUE)
         return (EXIT_FAILURE);
 
-    size_t	i;
+    size_t  i;
 
     i = 0;
     while (i < HISTORY_SIZE)
