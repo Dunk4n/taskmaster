@@ -190,15 +190,16 @@ uint8_t execute_command_line(struct taskmaster *taskmaster, char *line)
         return (EXIT_FAILURE);
     if(taskmaster->global_status.global_status_struct_init == FALSE)
         return (EXIT_FAILURE);
-    if(taskmaster->command_line.global_status.global_status_struct_init == FALSE)
-        return (EXIT_FAILURE);
     if(line == NULL)
         return (EXIT_FAILURE);
     if(SHELL_MAX_ARGUMENT == 0 || SHELL_MAX_ARGUMENT >= UINT8_MAX)
         return (EXIT_FAILURE);
 
-    uint8_t *arguments[SHELL_MAX_ARGUMENT + 1];
+    uint8_t  buffer[OUTPUT_BUFFER_SIZE];
     uint8_t  cnt;
+    uint8_t *arguments[SHELL_MAX_ARGUMENT + 1];
+
+    buffer[0] = NIL;
 
     cnt = 0;
     while(cnt <= SHELL_MAX_ARGUMENT)
@@ -231,7 +232,8 @@ uint8_t execute_command_line(struct taskmaster *taskmaster, char *line)
                 {
                 //TODO echo command failed
                 //TODO display help?
-                ft_printf("Command failed!\n");
+                snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, "Command failed!\n");
+                print_command_output(taskmaster, buffer);
                 }
 
             break;
@@ -242,7 +244,8 @@ uint8_t execute_command_line(struct taskmaster *taskmaster, char *line)
 
     if(cnt >= NUMBER_OF_SHELL_COMMAND)
         {
-        ft_printf("Command not found\n");
+        snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, "Command not found\n");
+        print_command_output(taskmaster, buffer);
         //TODO echo command not found
         //TODO display commands help?
         }

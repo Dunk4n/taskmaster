@@ -19,7 +19,6 @@ const uint8_t *g_program_specification_field_name[NUMBER_OF_PROGRAM_SPECIFICATIO
     (uint8_t *) "env",
     (uint8_t *) "workingdir",
     (uint8_t *) "umask",
-    (uint8_t *) "log",
     };
 
 /**
@@ -41,7 +40,6 @@ uint8_t (*const g_program_specification_field_load_function[NUMBER_OF_PROGRAM_SP
     program_field_env_load_function,
     program_field_workingdir_load_function,
     program_field_umask_load_function,
-    program_field_log_load_function,
     };
 
 /**
@@ -86,7 +84,6 @@ static uint8_t initialize_pgm_config(struct program_specification *program)
     program->env_length = 0;
     program->str_working_directory = NULL;
     program->umask = PROGRAM_DEFAULT_UMASk;
-    program->e_log = PROGRAM_DEFAULT_LOG_STATUS;
     program->restart_tmp_program = NULL;
     program->next = NULL;
 
@@ -172,7 +169,6 @@ static uint8_t reset_program_default_value_without_name(struct program_specifica
     free(program->str_working_directory);
     program->str_working_directory = NULL;
     program->umask = PROGRAM_DEFAULT_UMASk;
-    program->e_log = PROGRAM_DEFAULT_LOG_STATUS;
 
     program->exit_codes = malloc(1 * sizeof(uint8_t));
     if(program->exit_codes == NULL)
@@ -789,7 +785,6 @@ void free_program_specification(struct program_specification *program)
     program->str_working_directory = NULL;
 
     program->umask = PROGRAM_DEFAULT_UMASk;
-    program->e_log = PROGRAM_DEFAULT_LOG_STATUS;
 
     if(program->restart_tmp_program != NULL)
         {
@@ -983,21 +978,6 @@ void display_program_specification(struct program_specification *program)
 
     printf("WORKING_DIRECTORY: [%s]\n", program->str_working_directory);
     printf("UMASK: %c%c%c\n", ((program->umask >> 6) & 7) + '0', ((program->umask >> 3) & 7) + '0', (program->umask & 7) + '0');
-
-    switch(program->e_log)
-        {
-        case(PROGRAM_LOG_FALSE):
-            printf("LOG: FALSE\n");
-            break;
-        case(PROGRAM_LOG_TRUE):
-            printf("LOG: TRUE\n");
-            break;
-        case(PROGRAM_LOG_MAIL):
-            printf("LOG: UNEXPECTED\n");
-            break;
-        default:
-            break;
-        };
 
     if(program->restart_tmp_program == NULL)
         {

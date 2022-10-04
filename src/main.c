@@ -43,12 +43,12 @@ int main(int argc, char **argv) {
 
     if(taskmaster.global_status.global_status_start_as_client == FALSE)
         {
-        if (parse_config_file((uint8_t *)argv[1], &(taskmaster.programs)) !=
-                EXIT_SUCCESS) {
+        if (parse_config_file((uint8_t *)argv[1], &(taskmaster.programs)) != EXIT_SUCCESS)
+            {
             free_taskmaster(&taskmaster);
-            log_error("The parsing of the configuration file failed", __FILE__,
-                    __func__, __LINE__);
-        }
+            log_error("The parsing of the configuration file failed", __FILE__, __func__, __LINE__);
+            return (EXIT_FAILURE);
+            }
 
         /* display_program_list(&taskmaster.programs); */
         if (tm_job_control(&taskmaster.programs)) goto exit_error;
@@ -56,7 +56,8 @@ int main(int argc, char **argv) {
 
     if(taskmaster.global_status.global_status_start_as_daemon == TRUE)
         {
-        //TODO recv command from client
+        if(recv_command_from_client(&taskmaster) != EXIT_SUCCESS)
+            goto exit_error;
         }
     else
         {
