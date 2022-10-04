@@ -40,7 +40,7 @@ prod: CPPFLAGS += -DPRODUCTION
 prod: $(YAML) $(NAME)
 
 debug: CPPFLAGS += -DDEVELOPEMENT
-debug: CFLAGS := -Wall -Wextra -g -no-pie -fcommon
+debug: CFLAGS := -Wall -Wextra -g -fcommon
 debug: $(YAML) $(NAME)
 
 san: CPPFLAGS += -DDEVELOPEMENT
@@ -50,7 +50,6 @@ san: CFLAGS := -g -O1\
 	-fsanitize=pointer-compare \
 	-fsanitize=pointer-subtract \
 	-fsanitize=undefined
-san: LDFLAGS += $(CFLAGS)
 san: $(YAML) $(NAME)
 
 test: $(YAML) $(NAME)
@@ -81,7 +80,7 @@ $(NAME): $(OBJ)
 	@echo $(call OPTIONS, $(B_WHITE))
 	@$(MAKE) -s -C $(LIB_FT_DIR) --no-print-directory
 	@echo "$(GREEN)  BUILD$(RESET)    $(H_WHITE)$@$(RESET)"
-	@$(CC) $(LDFLAGS) -o $@ $(OBJ) $(LDLIBS)
+	@$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(OBJ) $(LDLIBS)
 
 $(BUILD_DIRECTORY)/%.o: %.c
 	@mkdir -p $(@D)
