@@ -1011,48 +1011,48 @@ uint8_t program_field_umask_load_function(yaml_parser_t *parser, struct program_
     return (EXIT_SUCCESS);
 }
 
-/**
-* This function parse the attribute log in an object program in the config file during the parsing
-*/
-uint8_t program_field_log_load_function(yaml_parser_t *parser, struct program_specification *program, yaml_event_t *event)
-{
-    if(parser == NULL)
-        return (EXIT_FAILURE);
-
-    if(program == NULL)
-        return (EXIT_FAILURE);
-
-    if(event == NULL)
-        return (EXIT_FAILURE);
-
-    yaml_event_delete(event);
-    if(yaml_parser_parse(parser, event) != 1)
-        {
-        #ifdef DEVELOPEMENT
-        fprintf(stderr, ""BRED"ERROR"CRESET": in file "BWHT"%s"CRESET" in function "BWHT"%s"CRESET" at line "BWHT"%d"CRESET"\n    The function to parse the YAML config file failed\n", __FILE__, __func__, __LINE__);
-        #endif
-
-        #ifdef DEMO
-        fprintf(stderr, ""BRED"ERROR"CRESET": in file "BWHT"%s"CRESET" at line "BWHT"%s"CRESET"\n", __FILE__, __LINE__);
-        #endif
-
-        #ifdef PRODUCTION
-        fprintf(stderr, ""BRED"ERROR"CRESET"\n");
-        #endif 
-        return (EXIT_FAILURE);
-        }
-
-    if(event->type != YAML_SCALAR_EVENT || event->data.scalar.value == NULL || event->data.scalar.length == 0)
-        return (EXIT_FAILURE);
-
-    if(strcmp((char *) event->data.scalar.value, "false") == 0)
-        program->e_log = PROGRAM_LOG_FALSE;
-    else if(strcmp((char *) event->data.scalar.value, "true") == 0)
-        program->e_log = PROGRAM_LOG_TRUE;
-    else if(strcmp((char *) event->data.scalar.value, "mail") == 0)
-        program->e_log = PROGRAM_LOG_MAIL;
-    else
-        return (EXIT_FAILURE);
-
-    return (EXIT_SUCCESS);
-}
+///**
+//* This function parse the attribute log in an object program in the config file during the parsing
+//*/
+//uint8_t program_field_log_load_function(yaml_parser_t *parser, struct program_specification *program, yaml_event_t *event)
+//{
+//    if(parser == NULL)
+//        return (EXIT_FAILURE);
+//
+//    if(program == NULL)
+//        return (EXIT_FAILURE);
+//
+//    if(event == NULL)
+//        return (EXIT_FAILURE);
+//
+//    yaml_event_delete(event);
+//    if(yaml_parser_parse(parser, event) != 1)
+//        {
+//        #ifdef DEVELOPEMENT
+//        fprintf(stderr, ""BRED"ERROR"CRESET": in file "BWHT"%s"CRESET" in function "BWHT"%s"CRESET" at line "BWHT"%d"CRESET"\n    The function to parse the YAML config file failed\n", __FILE__, __func__, __LINE__);
+//        #endif
+//
+//        #ifdef DEMO
+//        fprintf(stderr, ""BRED"ERROR"CRESET": in file "BWHT"%s"CRESET" at line "BWHT"%s"CRESET"\n", __FILE__, __LINE__);
+//        #endif
+//
+//        #ifdef PRODUCTION
+//        fprintf(stderr, ""BRED"ERROR"CRESET"\n");
+//        #endif 
+//        return (EXIT_FAILURE);
+//        }
+//
+//    if(event->type != YAML_SCALAR_EVENT || event->data.scalar.value == NULL || event->data.scalar.length == 0)
+//        return (EXIT_FAILURE);
+//
+//    if(strcmp((char *) event->data.scalar.value, "false") == 0)
+//        program->e_log = PROGRAM_LOG_FALSE;
+//    else if(strcmp((char *) event->data.scalar.value, "true") == 0)
+//        program->e_log = PROGRAM_LOG_TRUE;
+//    else if(strcmp((char *) event->data.scalar.value, "mail") == 0)
+//        program->e_log = PROGRAM_LOG_MAIL;
+//    else
+//        return (EXIT_FAILURE);
+//
+//    return (EXIT_SUCCESS);
+//}

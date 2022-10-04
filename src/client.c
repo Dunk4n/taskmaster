@@ -6,7 +6,7 @@ uint8_t send_text(struct taskmaster *taskmaster, char *line)
         return (EXIT_FAILURE);
     if(taskmaster->global_status.global_status_struct_init == FALSE)
         return (EXIT_FAILURE);
-    if(taskmaster->command_line.global_status.global_status_struct_init == FALSE)
+    if(taskmaster->global_status.global_status_start_as_daemon == FALSE && taskmaster->global_status.global_status_start_as_client == FALSE)
         return (EXIT_FAILURE);
     if(line == NULL)
         return (EXIT_FAILURE);
@@ -15,7 +15,10 @@ uint8_t send_text(struct taskmaster *taskmaster, char *line)
 
     size = 0;
 
-    size = send(taskmaster->socket, line, strlen(line), 0); //MSG_DONTWAIT
+    if(taskmaster->global_status.global_status_start_as_daemon == TRUE)
+        size = send(taskmaster->client_socket, line, strlen(line), MSG_NOSIGNAL); //MSG_DONTWAIT
+    else
+        size = send(taskmaster->socket, line, strlen(line), MSG_NOSIGNAL); //MSG_DONTWAIT
     if(size == -1)
         {
         return (EXIT_FAILURE);
@@ -30,7 +33,7 @@ uint8_t recv_text(struct taskmaster *taskmaster, uint8_t *buffer)
         return (EXIT_FAILURE);
     if(taskmaster->global_status.global_status_struct_init == FALSE)
         return (EXIT_FAILURE);
-    if(taskmaster->command_line.global_status.global_status_struct_init == FALSE)
+    if(taskmaster->global_status.global_status_start_as_daemon == FALSE && taskmaster->global_status.global_status_start_as_client == FALSE)
         return (EXIT_FAILURE);
     if(buffer == NULL)
         return (EXIT_FAILURE);
@@ -39,8 +42,17 @@ uint8_t recv_text(struct taskmaster *taskmaster, uint8_t *buffer)
 
     size = 0;
 
-    size = recv(taskmaster->socket, buffer, LINE_SIZE, 0); //MSG_DONTWAIT
+    if(taskmaster->global_status.global_status_start_as_daemon == TRUE)
+        size = recv(taskmaster->client_socket, buffer, LINE_SIZE, 0); //MSG_DONTWAIT
+    else
+        size = recv(taskmaster->socket, buffer, LINE_SIZE, 0); //MSG_DONTWAIT
     if(size == -1)
+        {
+        //TODO rm errno
+        perror(strerror(errno));
+        return (EXIT_FAILURE);
+        }
+    if(size == 0)
         return (EXIT_FAILURE);
 
     if(size <= LINE_SIZE)
@@ -57,8 +69,6 @@ uint8_t recv_text_and_display(struct taskmaster *taskmaster)
         return (EXIT_FAILURE);
     if(taskmaster->global_status.global_status_struct_init == FALSE)
         return (EXIT_FAILURE);
-    if(taskmaster->command_line.global_status.global_status_struct_init == FALSE)
-        return (EXIT_FAILURE);
 
     uint8_t  buffer[LINE_SIZE + 1];
     uint32_t cnt;
@@ -69,13 +79,22 @@ uint8_t recv_text_and_display(struct taskmaster *taskmaster)
 
     while(TRUE)
         {
+        buffer[0] = NIL;
         if(recv_text(taskmaster, buffer) != EXIT_SUCCESS)
             return (EXIT_FAILURE);
-        ft_printf("buff [%s]\n", buffer);
         cnt = 0;
         while(buffer[cnt] != NIL)
             {
-            if(strcmp((char *) (buffer + cnt), END_OF_MESSAGE_MARKER) == 0)
+            if(strncmp((char *) (buffer + cnt), EXIT_CLIENT_MARKER, EXIT_CLIENT_MARKER_LENGTH) == 0)
+                {
+                buffer[cnt] = NIL;
+                taskmaster->global_status.global_status_exit = TRUE;
+
+                if(write(STDIN_FILENO, buffer, strlen((char *) buffer)) == -1)
+                    return (EXIT_FAILURE);
+                return (EXIT_SUCCESS);
+                }
+            if(strncmp((char *) (buffer + cnt), END_OF_MESSAGE_MARKER, END_OF_MESSAGE_MARKER_LENGTH) == 0)
                 {
                 buffer[cnt] = NIL;
 
@@ -99,8 +118,6 @@ uint8_t send_command_line_to_daemon(struct taskmaster *taskmaster, char *line)
     if(taskmaster == NULL)
         return (EXIT_FAILURE);
     if(taskmaster->global_status.global_status_struct_init == FALSE)
-        return (EXIT_FAILURE);
-    if(taskmaster->command_line.global_status.global_status_struct_init == FALSE)
         return (EXIT_FAILURE);
     if(line == NULL)
         return (EXIT_FAILURE);

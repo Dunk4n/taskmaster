@@ -1,10 +1,32 @@
 #include "taskmaster.h"
 #include "minishell.h"
 
+void    print_command_output(struct taskmaster *taskmaster, uint8_t *buffer)
+    {
+    if(taskmaster == NULL)
+        return;
+    if(taskmaster->global_status.global_status_struct_init == FALSE)
+        return;
+    if(buffer == NULL)
+        return;
+
+    if(taskmaster->global_status.global_status_start_as_daemon == TRUE)
+        {
+        if(send_text(taskmaster, (char *) buffer) != EXIT_SUCCESS)
+            return;
+        }
+    else
+        {
+        write(STDIN_FILENO, buffer, strlen((char *) buffer));
+        }
+
+    return;
+    }
+
 /**
 * WARNING program_linked_list must be lock with mutex_program_linked_list before entering this function
 */
-void    display_status_of_program(struct program_specification *program)
+void    display_status_of_program(struct taskmaster *taskmaster, struct program_specification *program)
     {
     if(program == NULL)
         return;
@@ -15,44 +37,79 @@ void    display_status_of_program(struct program_specification *program)
 
     //uint32_t cnt;
     uint32_t number_of_proccess_alive;
+    uint8_t buffer[OUTPUT_BUFFER_SIZE];
 
+    buffer[0] = NIL;
     //cnt = 0;
     number_of_proccess_alive = 0;
 
     if(program->program_state.started == TRUE)
-        ft_printf(BOLD"Program ["COLOR_RESET"%s"BOLD"] is started"COLOR_RESET":\n", program->str_name);
+        {
+        snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, BOLD"Program ["COLOR_RESET"%s"BOLD"] is started"COLOR_RESET":\n", program->str_name);
+        print_command_output(taskmaster, buffer);
+        }
     else
-        ft_printf(BOLD"Program ["COLOR_RESET"%s"BOLD"] is NOT started"COLOR_RESET":\n", program->str_name);
+        {
+        snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, BOLD"Program ["COLOR_RESET"%s"BOLD"] is NOT started"COLOR_RESET":\n", program->str_name);
+        print_command_output(taskmaster, buffer);
+        }
 
     if(program->program_state.need_to_be_removed == TRUE || program->global_status.global_status_configuration_reloading == TRUE)
         {
         if(program->program_state.need_to_be_removed == TRUE)
-            ft_printf("    Set to be removed\n");
+            {
+            snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, "    Set to be removed\n");
+            print_command_output(taskmaster, buffer);
+            }
         if(program->global_status.global_status_configuration_reloading == TRUE)
-            ft_printf("    Configuration is reloading\n");
-        ft_printf("\n");
+            {
+            snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, "    Configuration is reloading\n");
+            print_command_output(taskmaster, buffer);
+            }
+        snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, "\n");
+        print_command_output(taskmaster, buffer);
         }
 
     if(program->program_state.starting == TRUE || program->program_state.stoping == TRUE || program->program_state.restarting == TRUE)
         {
         if(program->program_state.starting == TRUE)
-            ft_printf("    Is starting\n");
+            {
+            snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, "    Is starting\n");
+            print_command_output(taskmaster, buffer);
+            }
         if(program->program_state.stoping == TRUE)
-            ft_printf("    Is stoping\n");
+            {
+            snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, "    Is stoping\n");
+            print_command_output(taskmaster, buffer);
+            }
         if(program->program_state.restarting == TRUE)
-            ft_printf("    Is restarting\n");
-        ft_printf("\n");
+            {
+            snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, "    Is restarting\n");
+            print_command_output(taskmaster, buffer);
+            }
+        snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, "\n");
+        print_command_output(taskmaster, buffer);
         }
 
     if(program->program_state.need_to_restart == TRUE || program->program_state.need_to_stop == TRUE || program->program_state.need_to_start == TRUE)
         {
         if(program->program_state.need_to_restart == TRUE)
-            ft_printf("    Set to restart\n");
+            {
+            snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, "    Set to restart\n");
+            print_command_output(taskmaster, buffer);
+            }
         if(program->program_state.need_to_stop == TRUE)
-            ft_printf("    Set to stop\n");
+            {
+            snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, "    Set to stop\n");
+            print_command_output(taskmaster, buffer);
+            }
         if(program->program_state.need_to_start == TRUE)
-            ft_printf("    Set to start\n");
-        ft_printf("\n");
+            {
+            snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, "    Set to start\n");
+            print_command_output(taskmaster, buffer);
+            }
+        snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, "\n");
+        print_command_output(taskmaster, buffer);
         }
 
     number_of_proccess_alive = 0;
@@ -67,7 +124,8 @@ void    display_status_of_program(struct program_specification *program)
     //        }
     //    }
 
-    ft_printf("    Number of job alive (%u/%u)\n", number_of_proccess_alive, program->number_of_process);
+    snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, "    Number of job alive (%u/%u)\n", number_of_proccess_alive, program->number_of_process);
+    print_command_output(taskmaster, buffer);
     }
 
 uint8_t shell_command_status_function(struct taskmaster *taskmaster, uint8_t **arguments)
@@ -86,7 +144,9 @@ uint8_t shell_command_status_function(struct taskmaster *taskmaster, uint8_t **a
     uint8_t cnt;
     uint8_t argument_number;
     struct program_specification *actual_program;
+    uint8_t buffer[OUTPUT_BUFFER_SIZE];
 
+    buffer[0] = NIL;
     actual_program = NULL;
 
     cnt = 0;
@@ -110,7 +170,8 @@ uint8_t shell_command_status_function(struct taskmaster *taskmaster, uint8_t **a
                 }
             if(actual_program->str_name != NULL && actual_program->name_length > 0)
                 {
-                ft_printf("    [%s]\n", actual_program->str_name);
+                snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, "    [%s]\n", actual_program->str_name);
+                print_command_output(taskmaster, buffer);
                 }
 
             actual_program = actual_program->next;
@@ -140,10 +201,14 @@ uint8_t shell_command_status_function(struct taskmaster *taskmaster, uint8_t **a
                 if(strcmp((char *) arguments[cnt], (char *) actual_program->str_name) == 0)
                     {
                     //TODO display status of actual_program
-                    //ft_printf(BOLD"Status of program ["COLOR_RESET"%s"BOLD"]"COLOR_RESET":\n\n", arguments[cnt]);
-                    display_status_of_program(actual_program);
+                    //snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, BOLD"Status of program ["COLOR_RESET"%s"BOLD"]"COLOR_RESET":\n\n", arguments[cnt]);
+                    //print_command_output(taskmaster, buffer);
+
+                    display_status_of_program(taskmaster, actual_program);
                     display_program_specification(actual_program);
-                    ft_printf("\n");
+
+                    snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, "\n");
+                    print_command_output(taskmaster, buffer);
                     break;
                     }
                 }
@@ -153,7 +218,8 @@ uint8_t shell_command_status_function(struct taskmaster *taskmaster, uint8_t **a
 
         if(actual_program == NULL)
             {
-            ft_printf(BOLD"Program ["COLOR_RESET"%s"BOLD"] not found\n\n"COLOR_RESET, arguments[cnt]);
+            snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, BOLD"Program ["COLOR_RESET"%s"BOLD"] not found\n\n"COLOR_RESET, arguments[cnt]);
+            print_command_output(taskmaster, buffer);
             }
         cnt++;
         }
@@ -178,7 +244,9 @@ uint8_t shell_command_start_function(struct taskmaster *taskmaster, uint8_t **ar
     struct program_specification *actual_program;
     uint8_t                       argument_number;
     uint8_t                       cnt;
+    uint8_t buffer[OUTPUT_BUFFER_SIZE];
 
+    buffer[0] = NIL;
     actual_program = NULL;
 
     cnt = 0;
@@ -191,7 +259,9 @@ uint8_t shell_command_start_function(struct taskmaster *taskmaster, uint8_t **ar
         {
         //TODO missing arguments
         //TODO echo command help
-        ft_printf("Missing program name argument\n");
+
+        snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, "Missing program name argument\n");
+        print_command_output(taskmaster, buffer);
         return (EXIT_FAILURE);
         }
 
@@ -216,26 +286,51 @@ uint8_t shell_command_start_function(struct taskmaster *taskmaster, uint8_t **ar
                     if(actual_program->global_status.global_status_conf_loaded == TRUE)
                         {
                         if(actual_program->program_state.started == TRUE)
-                            ft_printf(BOLD"Program ["COLOR_RESET"%s"BOLD"] is already started"COLOR_RESET":\n\n", arguments[cnt]);
+                            {
+                            snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, BOLD"Program ["COLOR_RESET"%s"BOLD"] is already started"COLOR_RESET":\n\n", arguments[cnt]);
+                            print_command_output(taskmaster, buffer);
+                            }
                         else if(actual_program->program_state.need_to_be_removed == TRUE)
-                            ft_printf(BOLD"Program ["COLOR_RESET"%s"BOLD"] need to be removed"COLOR_RESET":\n\n", arguments[cnt]);
+                            {
+                            snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, BOLD"Program ["COLOR_RESET"%s"BOLD"] need to be removed"COLOR_RESET":\n\n", arguments[cnt]);
+                            print_command_output(taskmaster, buffer);
+                            }
                         else if(actual_program->program_state.need_to_restart == TRUE)
-                            ft_printf(BOLD"Program ["COLOR_RESET"%s"BOLD"] need to restart"COLOR_RESET":\n\n", arguments[cnt]);
+                            {
+                            snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, BOLD"Program ["COLOR_RESET"%s"BOLD"] need to restart"COLOR_RESET":\n\n", arguments[cnt]);
+                            print_command_output(taskmaster, buffer);
+                            }
                         else if(actual_program->program_state.need_to_stop == TRUE)
-                            ft_printf(BOLD"Program ["COLOR_RESET"%s"BOLD"] need to stop"COLOR_RESET":\n\n", arguments[cnt]);
+                            {
+                            snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, BOLD"Program ["COLOR_RESET"%s"BOLD"] need to stop"COLOR_RESET":\n\n", arguments[cnt]);
+                            print_command_output(taskmaster, buffer);
+                            }
                         else if(actual_program->program_state.starting == TRUE)
-                            ft_printf(BOLD"Program ["COLOR_RESET"%s"BOLD"] is already starting"COLOR_RESET":\n\n", arguments[cnt]);
+                            {
+                            snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, BOLD"Program ["COLOR_RESET"%s"BOLD"] is already starting"COLOR_RESET":\n\n", arguments[cnt]);
+                            print_command_output(taskmaster, buffer);
+                            }
                         else if(actual_program->program_state.stoping == TRUE)
-                            ft_printf(BOLD"Program ["COLOR_RESET"%s"BOLD"] is already stoping"COLOR_RESET":\n\n", arguments[cnt]);
+                            {
+                            snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, BOLD"Program ["COLOR_RESET"%s"BOLD"] is already stoping"COLOR_RESET":\n\n", arguments[cnt]);
+                            print_command_output(taskmaster, buffer);
+                            }
                         else if(actual_program->program_state.restarting == TRUE)
-                            ft_printf(BOLD"Program ["COLOR_RESET"%s"BOLD"] is already restarting"COLOR_RESET":\n\n", arguments[cnt]);
+                            {
+                            snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, BOLD"Program ["COLOR_RESET"%s"BOLD"] is already restarting"COLOR_RESET":\n\n", arguments[cnt]);
+                            print_command_output(taskmaster, buffer);
+                            }
                         else if(actual_program->global_status.global_status_configuration_reloading == TRUE)
-                            ft_printf(BOLD"Program ["COLOR_RESET"%s"BOLD"] configuration is reloading"COLOR_RESET":\n\n", arguments[cnt]);
+                            {
+                            snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, BOLD"Program ["COLOR_RESET"%s"BOLD"] configuration is reloading"COLOR_RESET":\n\n", arguments[cnt]);
+                            print_command_output(taskmaster, buffer);
+                            }
                         else
                             {
                             //TODO add in file log start of arguments[cnt]
 
-                            ft_printf(BOLD"Start program ["COLOR_RESET"%s"BOLD"]"COLOR_RESET":\n\n", arguments[cnt]);
+                            snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, BOLD"Start program ["COLOR_RESET"%s"BOLD"]"COLOR_RESET":\n\n", arguments[cnt]);
+                            print_command_output(taskmaster, buffer);
 
                             actual_program->program_state.need_to_start = TRUE;
                             }
@@ -250,7 +345,8 @@ uint8_t shell_command_start_function(struct taskmaster *taskmaster, uint8_t **ar
 
         if(actual_program == NULL)
             {
-            ft_printf(BOLD"Program ["COLOR_RESET"%s"BOLD"] not found\n\n"COLOR_RESET, arguments[cnt]);
+            snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, BOLD"Program ["COLOR_RESET"%s"BOLD"] not found\n\n"COLOR_RESET, arguments[cnt]);
+            print_command_output(taskmaster, buffer);
             }
         cnt++;
         }
@@ -275,7 +371,9 @@ uint8_t shell_command_stop_function(struct taskmaster *taskmaster, uint8_t **arg
     struct program_specification *actual_program;
     uint8_t                       cnt;
     uint8_t                       argument_number;
+    uint8_t buffer[OUTPUT_BUFFER_SIZE];
 
+    buffer[0] = NIL;
     actual_program = NULL;
 
     cnt = 0;
@@ -288,7 +386,8 @@ uint8_t shell_command_stop_function(struct taskmaster *taskmaster, uint8_t **arg
         {
         //TODO missing arguments
         //TODO echo command help
-        ft_printf("Missing program name argument\n");
+        snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, "Missing program name argument\n");
+        print_command_output(taskmaster, buffer);
         return (EXIT_FAILURE);
         }
 
@@ -313,26 +412,51 @@ uint8_t shell_command_stop_function(struct taskmaster *taskmaster, uint8_t **arg
                     if(actual_program->global_status.global_status_conf_loaded == TRUE)
                         {
                         if(actual_program->program_state.started == FALSE)
-                            ft_printf(BOLD"Program ["COLOR_RESET"%s"BOLD"] is already stoped"COLOR_RESET":\n\n", arguments[cnt]);
+                            {
+                            snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, BOLD"Program ["COLOR_RESET"%s"BOLD"] is already stoped"COLOR_RESET":\n\n", arguments[cnt]);
+                            print_command_output(taskmaster, buffer);
+                            }
                         else if(actual_program->program_state.need_to_be_removed == TRUE)
-                            ft_printf(BOLD"Program ["COLOR_RESET"%s"BOLD"] need to be removed"COLOR_RESET":\n\n", arguments[cnt]);
+                            {
+                            snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, BOLD"Program ["COLOR_RESET"%s"BOLD"] need to be removed"COLOR_RESET":\n\n", arguments[cnt]);
+                            print_command_output(taskmaster, buffer);
+                            }
                         else if(actual_program->program_state.need_to_restart == TRUE)
-                            ft_printf(BOLD"Program ["COLOR_RESET"%s"BOLD"] need to restart"COLOR_RESET":\n\n", arguments[cnt]);
+                            {
+                            snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, BOLD"Program ["COLOR_RESET"%s"BOLD"] need to restart"COLOR_RESET":\n\n", arguments[cnt]);
+                            print_command_output(taskmaster, buffer);
+                            }
                         else if(actual_program->program_state.need_to_start == TRUE)
-                            ft_printf(BOLD"Program ["COLOR_RESET"%s"BOLD"] need to start"COLOR_RESET":\n\n", arguments[cnt]);
+                            {
+                            snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, BOLD"Program ["COLOR_RESET"%s"BOLD"] need to start"COLOR_RESET":\n\n", arguments[cnt]);
+                            print_command_output(taskmaster, buffer);
+                            }
                         else if(actual_program->program_state.starting == TRUE)
-                            ft_printf(BOLD"Program ["COLOR_RESET"%s"BOLD"] is already starting"COLOR_RESET":\n\n", arguments[cnt]);
+                            {
+                            snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, BOLD"Program ["COLOR_RESET"%s"BOLD"] is already starting"COLOR_RESET":\n\n", arguments[cnt]);
+                            print_command_output(taskmaster, buffer);
+                            }
                         else if(actual_program->program_state.stoping == TRUE)
-                            ft_printf(BOLD"Program ["COLOR_RESET"%s"BOLD"] is already stoping"COLOR_RESET":\n\n", arguments[cnt]);
+                            {
+                            snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, BOLD"Program ["COLOR_RESET"%s"BOLD"] is already stoping"COLOR_RESET":\n\n", arguments[cnt]);
+                            print_command_output(taskmaster, buffer);
+                            }
                         else if(actual_program->program_state.restarting == TRUE)
-                            ft_printf(BOLD"Program ["COLOR_RESET"%s"BOLD"] is already restarting"COLOR_RESET":\n\n", arguments[cnt]);
+                            {
+                            snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, BOLD"Program ["COLOR_RESET"%s"BOLD"] is already restarting"COLOR_RESET":\n\n", arguments[cnt]);
+                            print_command_output(taskmaster, buffer);
+                            }
                         else if(actual_program->global_status.global_status_configuration_reloading == TRUE)
-                            ft_printf(BOLD"Program ["COLOR_RESET"%s"BOLD"] configuration is reloading"COLOR_RESET":\n\n", arguments[cnt]);
+                            {
+                            snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, BOLD"Program ["COLOR_RESET"%s"BOLD"] configuration is reloading"COLOR_RESET":\n\n", arguments[cnt]);
+                            print_command_output(taskmaster, buffer);
+                            }
                         else
                             {
                             //TODO add in file log stop of arguments[cnt]
 
-                            ft_printf(BOLD"Stop program ["COLOR_RESET"%s"BOLD"]"COLOR_RESET":\n\n", arguments[cnt]);
+                            snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, BOLD"Stop program ["COLOR_RESET"%s"BOLD"]"COLOR_RESET":\n\n", arguments[cnt]);
+                            print_command_output(taskmaster, buffer);
 
                             actual_program->program_state.need_to_stop = TRUE;
                             }
@@ -347,7 +471,8 @@ uint8_t shell_command_stop_function(struct taskmaster *taskmaster, uint8_t **arg
 
         if(actual_program == NULL)
             {
-            ft_printf(BOLD"Program ["COLOR_RESET"%s"BOLD"] not found\n\n"COLOR_RESET, arguments[cnt]);
+            snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, BOLD"Program ["COLOR_RESET"%s"BOLD"] not found\n\n"COLOR_RESET, arguments[cnt]);
+            print_command_output(taskmaster, buffer);
             }
         cnt++;
         }
@@ -372,7 +497,9 @@ uint8_t shell_command_restart_function(struct taskmaster *taskmaster, uint8_t **
     struct program_specification *actual_program;
     uint8_t                       cnt;
     uint8_t                       argument_number;
+    uint8_t buffer[OUTPUT_BUFFER_SIZE];
 
+    buffer[0] = NIL;
     actual_program = NULL;
 
     cnt = 0;
@@ -385,7 +512,8 @@ uint8_t shell_command_restart_function(struct taskmaster *taskmaster, uint8_t **
         {
         //TODO missing arguments
         //TODO echo command help
-        ft_printf("Missing program name argument\n");
+        snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, "Missing program name argument\n");
+        print_command_output(taskmaster, buffer);
         return (EXIT_FAILURE);
         }
 
@@ -410,24 +538,46 @@ uint8_t shell_command_restart_function(struct taskmaster *taskmaster, uint8_t **
                     if(actual_program->global_status.global_status_conf_loaded == TRUE)
                         {
                         if(actual_program->program_state.need_to_be_removed == TRUE)
-                            ft_printf(BOLD"Program ["COLOR_RESET"%s"BOLD"] need to be removed"COLOR_RESET":\n\n", arguments[cnt]);
+                            {
+                            snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, BOLD"Program ["COLOR_RESET"%s"BOLD"] need to be removed"COLOR_RESET":\n\n", arguments[cnt]);
+                            print_command_output(taskmaster, buffer);
+                            }
                         else if(actual_program->program_state.need_to_stop == TRUE)
-                            ft_printf(BOLD"Program ["COLOR_RESET"%s"BOLD"] need to stop"COLOR_RESET":\n\n", arguments[cnt]);
+                            {
+                            snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, BOLD"Program ["COLOR_RESET"%s"BOLD"] need to stop"COLOR_RESET":\n\n", arguments[cnt]);
+                            print_command_output(taskmaster, buffer);
+                            }
                         else if(actual_program->program_state.need_to_start == TRUE)
-                            ft_printf(BOLD"Program ["COLOR_RESET"%s"BOLD"] need to start"COLOR_RESET":\n\n", arguments[cnt]);
+                            {
+                            snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, BOLD"Program ["COLOR_RESET"%s"BOLD"] need to start"COLOR_RESET":\n\n", arguments[cnt]);
+                            print_command_output(taskmaster, buffer);
+                            }
                         else if(actual_program->program_state.starting == TRUE)
-                            ft_printf(BOLD"Program ["COLOR_RESET"%s"BOLD"] is already starting"COLOR_RESET":\n\n", arguments[cnt]);
+                            {
+                            snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, BOLD"Program ["COLOR_RESET"%s"BOLD"] is already starting"COLOR_RESET":\n\n", arguments[cnt]);
+                            print_command_output(taskmaster, buffer);
+                            }
                         else if(actual_program->program_state.stoping == TRUE)
-                            ft_printf(BOLD"Program ["COLOR_RESET"%s"BOLD"] is already stoping"COLOR_RESET":\n\n", arguments[cnt]);
+                            {
+                            snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, BOLD"Program ["COLOR_RESET"%s"BOLD"] is already stoping"COLOR_RESET":\n\n", arguments[cnt]);
+                            print_command_output(taskmaster, buffer);
+                            }
                         else if(actual_program->program_state.restarting == TRUE)
-                            ft_printf(BOLD"Program ["COLOR_RESET"%s"BOLD"] is already restarting"COLOR_RESET":\n\n", arguments[cnt]);
+                            {
+                            snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, BOLD"Program ["COLOR_RESET"%s"BOLD"] is already restarting"COLOR_RESET":\n\n", arguments[cnt]);
+                            print_command_output(taskmaster, buffer);
+                            }
                         else if(actual_program->global_status.global_status_configuration_reloading == TRUE)
-                            ft_printf(BOLD"Program ["COLOR_RESET"%s"BOLD"] configuration is reloading"COLOR_RESET":\n\n", arguments[cnt]);
+                            {
+                            snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, BOLD"Program ["COLOR_RESET"%s"BOLD"] configuration is reloading"COLOR_RESET":\n\n", arguments[cnt]);
+                            print_command_output(taskmaster, buffer);
+                            }
                         else
                             {
                             //TODO add in file log restart of arguments[cnt]
 
-                            ft_printf(BOLD"Restart program ["COLOR_RESET"%s"BOLD"]"COLOR_RESET":\n\n", arguments[cnt]);
+                            snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, BOLD"Restart program ["COLOR_RESET"%s"BOLD"]"COLOR_RESET":\n\n", arguments[cnt]);
+                            print_command_output(taskmaster, buffer);
 
                             actual_program->program_state.need_to_restart = TRUE;
                             }
@@ -442,7 +592,8 @@ uint8_t shell_command_restart_function(struct taskmaster *taskmaster, uint8_t **
 
         if(actual_program == NULL)
             {
-            ft_printf(BOLD"Program ["COLOR_RESET"%s"BOLD"] not found\n\n"COLOR_RESET, arguments[cnt]);
+            snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, BOLD"Program ["COLOR_RESET"%s"BOLD"] not found\n\n"COLOR_RESET, arguments[cnt]);
+            print_command_output(taskmaster, buffer);
             }
         cnt++;
         }
@@ -465,6 +616,9 @@ uint8_t shell_command_reload_conf_function(struct taskmaster *taskmaster, uint8_
         return (EXIT_FAILURE);
 
     uint8_t cnt;
+    uint8_t buffer[OUTPUT_BUFFER_SIZE];
+
+    buffer[0] = NIL;
 
     cnt = 0;
     while(cnt < SHELL_MAX_ARGUMENT && arguments[cnt] != NULL)
@@ -474,7 +628,8 @@ uint8_t shell_command_reload_conf_function(struct taskmaster *taskmaster, uint8_
         {
         //TODO missing one argument
         //TODO echo command help
-        ft_printf("Missing configuration file argument\n");
+        snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, "Missing configuration file argument\n");
+        print_command_output(taskmaster, buffer);
         return (EXIT_FAILURE);
         }
 
@@ -482,11 +637,13 @@ uint8_t shell_command_reload_conf_function(struct taskmaster *taskmaster, uint8_
         {
         //TODO too many argument
         //TODO echo command help
-        ft_printf("Too many argument\n");
+        snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, "Too many argument\n");
+        print_command_output(taskmaster, buffer);
         return (EXIT_FAILURE);
         }
 
-    ft_printf("RELOAD_CONF\n");
+    snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, "RELOAD_CONF\n");
+    print_command_output(taskmaster, buffer);
 
     //TODO add in file log reloading config file
 
@@ -521,17 +678,28 @@ uint8_t shell_command_exit_function(struct taskmaster *taskmaster, uint8_t **arg
     if(arguments[0] == NULL)
         return (EXIT_FAILURE);
 
+    uint8_t buffer[OUTPUT_BUFFER_SIZE];
+
+    buffer[0] = NIL;
+
     if(arguments[1] != NULL)
         {
         //TODO too many argument
         //TODO echo command help
-        ft_printf("Too many argument\n");
+        snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, "Too many argument\n");
+        print_command_output(taskmaster, buffer);
         return (EXIT_FAILURE);
         }
 
-    stop_and_wait_all_the_program(&(taskmaster->programs));
+    stop_and_wait_all_the_program(taskmaster);
 
     taskmaster->global_status.global_status_exit = TRUE;
+
+    if(taskmaster->global_status.global_status_start_as_daemon == TRUE)
+        {
+        if(send_text(taskmaster, EXIT_CLIENT_MARKER) != EXIT_SUCCESS)
+            return (EXIT_FAILURE);
+        }
 
     return (EXIT_SUCCESS);
     }

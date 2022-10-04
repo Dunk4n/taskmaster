@@ -76,6 +76,11 @@ enum program_auto_restart_status
 //# define NUMBER_OF_SECONDS_TO_WAIT_FOR_EXIT (300)
 # define NUMBER_OF_SECONDS_TO_WAIT_FOR_EXIT (1)
 # define END_OF_MESSAGE_MARKER ("\03END_MESSAGE")
+# define END_OF_MESSAGE_MARKER_LENGTH (12)
+# define EXIT_CLIENT_MARKER ("\03EXIT_CLIENT")
+# define EXIT_CLIENT_MARKER_LENGTH (12)
+
+# define OUTPUT_BUFFER_SIZE (LINE_SIZE)
 
 #define UNINITIALIZED_FD (-42)
 #define FD_ERR (-1)
@@ -99,20 +104,8 @@ enum program_specification_field
     PROGRAM_ENV,
     PROGRAM_WORKINGDIR,
     PROGRAM_UMASK,
-    PROGRAM_LOG,
     NUMBER_OF_PROGRAM_SPECIFICATION_FIELD
     };
-
-/**
-* This enumeration represente all the posible value for the attribute log in the structure program_specification
-*/
-enum program_log_status
-{
-    PROGRAM_LOG_FALSE = 0,
-    PROGRAM_LOG_TRUE,
-    PROGRAM_LOG_MAIL,
-    NUMBER_OF_PROGRAM_LOG_STATUS
-};
 
 /**
 * This structure represente a program that will be executed by taskmaster
@@ -165,7 +158,6 @@ struct program_specification
     uint32_t                          env_length;
     uint8_t                          *str_working_directory;    // 12. A working directory to set before launching the program
     mode_t                            umask;                    // 13. An umask to set before launching the program
-    enum program_log_status           e_log;                    // 3.  More advanced logging/reporting facilities (Alerts via email/http/syslog/etc...)
 
     struct program_specification *restart_tmp_program;
 
@@ -265,7 +257,6 @@ uint8_t program_field_stderr_load_function(yaml_parser_t *parser, struct program
 uint8_t program_field_env_load_function(yaml_parser_t *parser, struct program_specification *program, yaml_event_t *event);
 uint8_t program_field_workingdir_load_function(yaml_parser_t *parser, struct program_specification *program, yaml_event_t *event);
 uint8_t program_field_umask_load_function(yaml_parser_t *parser, struct program_specification *program, yaml_event_t *event);
-uint8_t program_field_log_load_function(yaml_parser_t *parser, struct program_specification *program, yaml_event_t *event);
 
 /* configuration_parsing.c */
 uint8_t init_program_list(struct program_list *program_list);
@@ -274,7 +265,7 @@ uint8_t reload_config_file(uint8_t *file_name, struct program_list *program_list
 void display_program_specification(struct program_specification *program);
 void display_program_list(struct program_list *programs);
 void free_linked_list_in_program_list(struct program_list *programs);
-void stop_and_wait_all_the_program(struct program_list *programs);
+void stop_and_wait_all_the_program(struct taskmaster *taskmaster);
 void free_program_list(struct program_list *programs);
 void free_program_specification(struct program_specification *program);
 
@@ -330,5 +321,9 @@ uint8_t  shell_command_exit_function(struct taskmaster *taskmaster, uint8_t **ar
 uint8_t init_taskmaster_daemon(struct taskmaster *taskmaster);
 uint8_t init_taskmaster_client(struct taskmaster *taskmaster);
 uint8_t send_command_line_to_daemon(struct taskmaster *taskmaster, char *line);
+uint8_t recv_text(struct taskmaster *taskmaster, uint8_t *buffer);
+uint8_t send_text(struct taskmaster *taskmaster, char *line);
+uint8_t recv_command_from_client(struct taskmaster *taskmaster);
+void    print_command_output(struct taskmaster *taskmaster, uint8_t *buffer);
 
 #endif
