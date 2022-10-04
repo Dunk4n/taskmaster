@@ -25,7 +25,7 @@ int main(int argc, char **argv) {
     memset(&(taskmaster.global_status), 0, sizeof(taskmaster.global_status));
     if(argc == 2 && strcmp(argv[1], "-c") == 0)
         taskmaster.global_status.global_status_start_as_client = TRUE;
-    else if(argc == 3)
+    if(argc == 3)
         {
         if(strcmp(argv[2], "-d") == 0)
             {
@@ -36,11 +36,6 @@ int main(int argc, char **argv) {
             display_help();
             return (EXIT_FAILURE);
             }
-        }
-    else
-        {
-        display_help();
-        return (EXIT_FAILURE);
         }
 
     taskmaster.global_status.global_status_struct_init = FALSE;

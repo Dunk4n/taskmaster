@@ -816,15 +816,16 @@ uint8_t program_field_env_load_function(yaml_parser_t *parser, struct program_sp
             if(event->data.scalar.length >= SIZE_MAX - 1)
                 return (EXIT_FAILURE);
 
-            if(pos == UINT32_MAX)
+            if(pos >= UINT32_MAX - 1)
                 return (EXIT_FAILURE);
 
             tmp_env = NULL;
-            tmp_env = reallocarray(program->env, sizeof(uint8_t *), pos + 1);
+            tmp_env = reallocarray(program->env, sizeof(uint8_t *), pos + 2);
             if(tmp_env == NULL)
                 return (EXIT_FAILURE);
             program->env = tmp_env;
             program->env[pos] = NULL;
+            program->env[pos + 1] = NULL;
 
             program->env_length = pos + 1;
 

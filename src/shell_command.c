@@ -142,7 +142,7 @@ uint8_t shell_command_status_function(struct taskmaster *taskmaster, uint8_t **a
                     //TODO display status of actual_program
                     //ft_printf(BOLD"Status of program ["COLOR_RESET"%s"BOLD"]"COLOR_RESET":\n\n", arguments[cnt]);
                     display_status_of_program(actual_program);
-                    //display_program_specification(actual_program);
+                    display_program_specification(actual_program);
                     ft_printf("\n");
                     break;
                     }
