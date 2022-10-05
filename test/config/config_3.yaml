@@ -1,6 +1,6 @@
 programs:
   daemon_ALPHA:
-    cmd: "./test/daemons/daemon_ALPHA arg1 arg2"
+    cmd: "/home/user42/42/taskmaster/test/daemons/daemon_ALPHA arg1 arg2"
     numprocs: 2
     umask: 777
     workingdir: /tmp
@@ -20,10 +20,10 @@ programs:
       ANSWER: 42
     log: true
   daemon_BETA:
-    cmd: "./test/daemons/daemon_BETA arg1 arg2"
+    cmd: "/home/user42/42/taskmaster/test/daemons/daemon_BETA arg1 arg2"
     numprocs: 5
     umask: 077
-    workingdir: /tmp
+    workingdir: /home/user42
     autostart: true
     autorestart: true
     exitcodes: 0

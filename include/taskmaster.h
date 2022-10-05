@@ -12,10 +12,11 @@
 # include <string.h>
 # include <unistd.h>
 # include <term.h>
-# include <sys/socket.h>
 # include <netdb.h>
 # include <errno.h>
+# include <sys/socket.h>
 # include <sys/wait.h>
+# include <sys/stat.h>
 # include "yaml.h"
 # include "minishell.h"
 
@@ -84,7 +85,8 @@ enum program_auto_restart_status
 
 #define UNINITIALIZED_FD (-42)
 #define FD_ERR (-1)
-#define TASKMASTER_LOGFILE "./tm.log"
+#define TASKMASTER_LOGFILE "./tm.log" /* which file taskmaster logs to */
+
 /**
 * This enumeration represente all the posible attribute in the structure program_specification
 */
@@ -156,7 +158,7 @@ struct program_specification
     char                             *str_stderr;
     uint8_t                         **env;                      // 11. Environment variables to set before launching the program // array of strings
     uint32_t                          env_length;
-    uint8_t                          *str_working_directory;    // 12. A working directory to set before launching the program
+    uint8_t                          *working_dir;              // 12. A working directory to set before launching the program
     mode_t                            umask;                    // 13. An umask to set before launching the program
 
     struct program_specification *restart_tmp_program;
@@ -276,13 +278,6 @@ void free_program_specification(struct program_specification *program);
         return (EXIT_FAILURE);              \
     } while (0)
 
-#define exit_thrd(pgm, rid, msg, file, func, line) \
-    do {                                      \
-        exit_thread(pgm, rid);                \
-        err_display(msg, file, func, line);   \
-        return (NULL);                        \
-    } while (0)
-
 void err_display(const char *msg, const char *file, const char *func,
 			uint32_t line);
 
@@ -292,18 +287,14 @@ uint8_t init_taskmaster(struct taskmaster *taskmaster);
 void    free_taskmaster(struct taskmaster *taskmaster);
 
 /* tm_job_control.c */
-#ifdef DEVELOPEMENT
-#define debug_thrd()                                              \
-    do {                                                          \
-        printf("tid: %lu, rid: %d, pid: %d\n", pgm->thrd[id].tid, \
-               pgm->thrd[id].rid, pgm->thrd[id].pid);             \
-    } while (0)
-#else
-#define debug_thrd()
-#endif
+typedef uint8_t (*callback)(struct program_specification *,
+                            struct program_list *node);
+
+typedef struct client_handler {
+    callback cb;
+} s_client_handler;
 
 uint8_t tm_job_control(struct program_list *taskmaster);
-void exit_thread(struct program_specification *pgm, int32_t rid);
 
 /* execute_command_line.c */
 uint8_t *get_next_instruction(char *line, int32_t *id);

@@ -938,19 +938,19 @@ uint8_t program_field_workingdir_load_function(yaml_parser_t *parser, struct pro
     if(event->type != YAML_SCALAR_EVENT || event->data.scalar.value == NULL || event->data.scalar.length == 0)
         return (EXIT_FAILURE);
 
-    new_cmd = reallocarray(program->str_working_directory, sizeof(uint8_t), event->data.scalar.length + 1);
+    new_cmd = reallocarray(program->working_dir, sizeof(uint8_t), event->data.scalar.length + 1);
     if(new_cmd == NULL)
         return (EXIT_FAILURE);
 
-    program->str_working_directory = new_cmd;
+    program->working_dir = new_cmd;
 
     cnt = 0;
     while(cnt < event->data.scalar.length)
         {
-        program->str_working_directory[cnt] = event->data.scalar.value[cnt];
+        program->working_dir[cnt] = event->data.scalar.value[cnt];
         cnt++;
         }
-    program->str_working_directory[cnt] = NIL;
+    program->working_dir[cnt] = NIL;
 
     return (EXIT_SUCCESS);
 }

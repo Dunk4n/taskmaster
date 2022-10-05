@@ -48,7 +48,7 @@ static uint8_t is_important_value_changed(struct program_specification *first_pr
         cnt++;
         }
 
-    if(strcmp((char *) first_program->str_working_directory, (char *) second_program->str_working_directory) != 0)
+    if(strcmp((char *) first_program->working_dir, (char *) second_program->working_dir) != 0)
         return (TRUE);
 
     if(first_program->umask != second_program->umask)

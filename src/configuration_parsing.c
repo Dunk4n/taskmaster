@@ -82,7 +82,7 @@ static uint8_t initialize_pgm_config(struct program_specification *program)
     program->str_stderr = NULL;
     program->env = NULL;
     program->env_length = 0;
-    program->str_working_directory = NULL;
+    program->working_dir = NULL;
     program->umask = PROGRAM_DEFAULT_UMASk;
     program->restart_tmp_program = NULL;
     program->next = NULL;
@@ -166,8 +166,8 @@ static uint8_t reset_program_default_value_without_name(struct program_specifica
     program->env = NULL;
     program->env_length = 0;
 
-    free(program->str_working_directory);
-    program->str_working_directory = NULL;
+    free(program->working_dir);
+    program->working_dir = NULL;
     program->umask = PROGRAM_DEFAULT_UMASk;
 
     program->exit_codes = malloc(1 * sizeof(uint8_t));
@@ -781,8 +781,8 @@ void free_program_specification(struct program_specification *program)
     program->env = NULL;
     program->env_length = 0;
 
-    free(program->str_working_directory);
-    program->str_working_directory = NULL;
+    free(program->working_dir);
+    program->working_dir = NULL;
 
     program->umask = PROGRAM_DEFAULT_UMASk;
 
@@ -976,7 +976,7 @@ void display_program_specification(struct program_specification *program)
             }
         }
 
-    printf("WORKING_DIRECTORY: [%s]\n", program->str_working_directory);
+    printf("WORKING_DIRECTORY: [%s]\n", program->working_dir);
     printf("UMASK: %c%c%c\n", ((program->umask >> 6) & 7) + '0', ((program->umask >> 3) & 7) + '0', (program->umask & 7) + '0');
 
     if(program->restart_tmp_program == NULL)
