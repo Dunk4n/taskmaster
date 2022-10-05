@@ -42,33 +42,6 @@ uint8_t (*const g_program_specification_field_load_function[NUMBER_OF_PROGRAM_SP
     program_field_umask_load_function,
     };
 
-static void init_thread(const struct program_specification *pgm,
-                        struct thread_data *thrd) {
-    for (uint32_t i = 0; i < pgm->number_of_process; i++) {
-        thrd->rid = i;
-        thrd->restart_counter = pgm->start_retries;
-    }
-}
-
-/* If config says that process logs somewhere, init_log() open and store these
- * files */
-static uint8_t init_log(struct program_specification *pgm) {
-    pgm->log.out = UNINITIALIZED_FD;
-    pgm->log.err = UNINITIALIZED_FD;
-
-    if (pgm->str_stdout) {
-        pgm->log.out = open(pgm->str_stdout, O_RDWR | O_CREAT | O_APPEND, 0755);
-        if (pgm->log.out == FD_ERR)
-            log_error("open str_stdout failed", __FILE__, __func__, __LINE__);
-    }
-    if (pgm->str_stderr) {
-        pgm->log.err = open(pgm->str_stderr, O_RDWR | O_CREAT | O_APPEND, 0755);
-        if (pgm->log.err == FD_ERR)
-            log_error("open str_stderr failed", __FILE__, __func__, __LINE__);
-    }
-    return EXIT_SUCCESS;
-}
-
 /**
 * This function set to the default value the structure program_specification
 */
@@ -124,14 +97,11 @@ static uint8_t initialize_pgm_config(struct program_specification *program)
 
     program->global_status.global_status_struct_init = TRUE;
 
+    program->node = NULL;
     program->thrd = NULL;
-    program->thrd = (struct thread_data *)calloc(program->number_of_process,
-            sizeof(struct thread_data));
-    if (!program->thrd)
-        log_error("unable to calloc program->thrd",
-                __FILE__, __func__, __LINE__);
-    if (init_log(program)) return EXIT_FAILURE;
-    init_thread(program, program->thrd);
+    program->argv = NULL;
+    program->log.out = UNINITIALIZED_FD;
+    program->log.err = UNINITIALIZED_FD;
 
     return (EXIT_SUCCESS);
     }
@@ -206,6 +176,12 @@ static uint8_t reset_program_default_value_without_name(struct program_specifica
     program->exit_codes[0] = PROGRAM_DEFAULT_EXIT_CODE;
     program->exit_codes_number = 1;
 
+    program->node = NULL;
+    program->thrd = NULL;
+    program->argv = NULL;
+    program->log.out = UNINITIALIZED_FD;
+    program->log.err = UNINITIALIZED_FD;
+
     if(program->restart_tmp_program != NULL)
         {
         free_program_specification(program->restart_tmp_program);
@@ -266,6 +242,7 @@ static uint8_t add_new_program(struct program_list *program_list, uint8_t *progr
         return (EXIT_FAILURE);
         }
 
+    program_tmp->node = program_list;
     if(program_list->program_linked_list == NULL)
         {
         program_list->program_linked_list      = program_tmp;
@@ -424,6 +401,7 @@ static uint8_t parse_config_one_program(yaml_parser_t *parser, struct program_li
                 {
                 if(reset_program_default_value_without_name(actual_program_specification) != EXIT_SUCCESS)
                     return (EXIT_FAILURE);
+                actual_program_specification->node = program_list;
                 actual_program_specification->global_status.global_status_configuration_reloading = TRUE;
                 break;
                 }
@@ -759,6 +737,18 @@ void free_program_specification(struct program_specification *program)
     free(program->str_start_command);
     program->str_start_command = NULL;
 
+    if (program->thrd) {
+        free(program->thrd);
+        program->thrd = NULL;
+    }
+
+    if (program->argv) {
+        for (cnt = 0; program->argv[cnt]; cnt++)
+            free(program->argv[cnt]);
+        free(program->argv);
+        program->argv = NULL;
+    }
+
     program->number_of_process = PROGRAM_DEFAULT_NUMBER_OF_PROCESS;
 
     program->auto_start = PROGRAM_DEFAULT_AUTO_START;
@@ -802,11 +792,11 @@ void free_program_specification(struct program_specification *program)
         free(program->restart_tmp_program);
         }
     program->restart_tmp_program = NULL;
-
-    program->next = NULL;
-    if (program->thrd) free(program->thrd);
     if (program->log.out != UNINITIALIZED_FD) close(program->log.out);
     if (program->log.err != UNINITIALIZED_FD) close(program->log.err);
+
+    program->node = NULL;
+    program->next = NULL;
     }
 
 /**
@@ -856,6 +846,7 @@ void free_program_list(struct program_list *programs)
     programs->global_status.global_status_conf_loaded = FALSE;
 
     pthread_attr_destroy(&programs->attr);
+    close(programs->tm_fd_log);
 
     free_linked_list_in_program_list(programs);
 
@@ -1070,6 +1061,12 @@ uint8_t init_program_list(struct program_list *program_list)
         return (EXIT_FAILURE);
 
     program_list->global_status.global_status_struct_init = TRUE;
+
+    program_list->tm_fd_log =
+        open(TASKMASTER_LOGFILE, O_RDWR | O_TRUNC | O_CREAT, 0644);
+    if(program_list->tm_fd_log == -1)
+        log_error("failed to open "TASKMASTER_LOGFILE, __FILE__, __func__,
+                  __LINE__);
 
     return (EXIT_SUCCESS);
     }

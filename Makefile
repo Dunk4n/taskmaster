@@ -52,15 +52,17 @@ san: CFLAGS := -g -O1\
 	-fsanitize=undefined
 san: $(YAML) $(NAME)
 
+test: CPPFLAGS += -DDEVELOPEMENT
 test: $(YAML) $(NAME)
 	@bash $(SCRIPT_DIRECTORY)/build_many_daemons.sh
 	@./$(NAME) $(CONFIG_DIRECTORY)/config_3.yaml
 
+retest: CPPFLAGS += -DDEVELOPEMENT
 retest: $(YAML) $(NAME)
 	@$(MAKE) -sC $(SRC_TEST_DIRECTORY) fclean
 	@$(MAKE) -s test
 
-kill: $(YAML) $(NAME)
+kill:
 	@bash $(SCRIPT_DIRECTORY)/shutdown_all_daemons.sh
 
 $(YAML):

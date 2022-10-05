@@ -16,3 +16,4 @@ test/daemons
 lib
 include/yaml.h
 taskmaster
+*.log
