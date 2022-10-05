@@ -80,6 +80,7 @@ enum program_auto_restart_status
 # define EXIT_CLIENT_MARKER_LENGTH (12)
 
 # define OUTPUT_BUFFER_SIZE (LINE_SIZE)
+# define DEAMON_PORT (8001)
 
 #define UNINITIALIZED_FD (-42)
 #define FD_ERR (-1)
@@ -301,5 +302,6 @@ uint8_t recv_text(struct taskmaster *taskmaster, uint8_t *buffer);
 uint8_t send_text(struct taskmaster *taskmaster, char *line);
 uint8_t recv_command_from_client(struct taskmaster *taskmaster);
 void    print_command_output(struct taskmaster *taskmaster, uint8_t *buffer);
+void    send_mail_to_local_user(char *msg);
 
 #endif

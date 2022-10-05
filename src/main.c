@@ -1,6 +1,22 @@
 #include "minishell.h"
 #include "taskmaster.h"
 
+//TODO function to move
+void send_mail_to_local_user(char *msg)
+    {
+    if(msg == NULL)
+        return;
+
+    FILE *stream;
+
+    stream = NULL;
+    stream = popen("mail -s 'MAIL LOGGING' $(whoami)@localhost 2> /dev/null\n","w");
+    if(stream == NULL)
+        return;
+    fwrite(msg, 1, strlen(msg), stream);
+    pclose(stream);
+    }
+
 void display_help(void)
     {
     printf("./taskmaster [CONFIG_FILE_PATH] [OPTION]\n");

@@ -75,10 +75,6 @@ uint8_t init_taskmaster_daemon(struct taskmaster *taskmaster)
     if(taskmaster->global_status.global_status_start_as_daemon == FALSE)
         return (EXIT_FAILURE);
 
-    uint16_t port;
-
-    port = 0;
-
     memset(&taskmaster->addr, 0, sizeof(taskmaster->addr));
 
     taskmaster->socket = socket(AF_INET, SOCK_STREAM, 0);
@@ -90,8 +86,7 @@ uint8_t init_taskmaster_daemon(struct taskmaster *taskmaster)
 
     taskmaster->addr.sin_family = AF_INET;
     taskmaster->addr.sin_addr.s_addr = 0;
-    port = 8001;
-    taskmaster->addr.sin_port = port >> 8 | port << 8;
+    taskmaster->addr.sin_port = htons(DEAMON_PORT);
     if(bind(taskmaster->socket, (const struct sockaddr *)&taskmaster->addr, sizeof(taskmaster->addr)) < 0)
         {
         close(taskmaster->socket);
