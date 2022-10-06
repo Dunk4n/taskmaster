@@ -14,6 +14,7 @@
 # include <term.h>
 # include <netdb.h>
 # include <errno.h>
+# include <stdatomic.h>
 # include <sys/socket.h>
 # include <sys/wait.h>
 # include <sys/stat.h>
@@ -83,6 +84,9 @@ enum program_auto_restart_status
 
 # define OUTPUT_BUFFER_SIZE (LINE_SIZE)
 # define DEAMON_PORT (8001)
+
+#define START_TIME_MAX (20)
+#define STOP_TIME_MAX (20)
 
 #define UNINITIALIZED_FD (-42)
 #define FD_ERR (-1)
@@ -175,10 +179,12 @@ struct program_specification
       pthread_t tid; /* thread id of current thread */
       uint32_t pid;  /* pid of current process */
       /* how many time the process can be restarted */
-      uint16_t restart_counter;
+      atomic_int restart_counter;
       uint8_t exit_status; /* value of exit from the current process */
+      struct timeval start_timestamp;
     } *thrd; /* array of thread_data. One thread per processus */
 
+    struct timeval stop_timestamp;
     char **argv; /* name of program and its arguments in the form of argv */
 
     struct program_list *node;

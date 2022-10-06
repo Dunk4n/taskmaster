@@ -418,6 +418,7 @@ uint8_t program_field_starttime_load_function(yaml_parser_t *parser, struct prog
         }
 
     program->start_time = atoui((char *) event->data.scalar.value);
+    if (program->start_time > START_TIME_MAX) return EXIT_FAILURE;
     return (EXIT_SUCCESS);
 }
 
@@ -612,6 +613,7 @@ uint8_t program_field_stoptime_load_function(yaml_parser_t *parser, struct progr
         }
 
     program->stop_time = atoui((char *) event->data.scalar.value);
+    if (program->stop_time > STOP_TIME_MAX) return EXIT_FAILURE;
     return (EXIT_SUCCESS);
 }
 
