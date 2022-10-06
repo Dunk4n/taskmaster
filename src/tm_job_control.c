@@ -52,7 +52,7 @@ static void *routine_launcher_thrd(void *arg) {
     if (id == -1)
         exit_thrd(NULL, id, "couldn't find thread id", __FILE__, __func__,
                   __LINE__);
-    while (pgm_restart) {
+    while (pgm_restart > 0) {
         printf("restart: %u\n", THRD_DATA_GET(restart_counter));
         pid = fork();
         if (pid == -1)
@@ -91,6 +91,7 @@ static void *routine_launcher_thrd(void *arg) {
 static uint8_t create_launcher_threads(struct program_specification *pgm,
                                        const pthread_attr_t *attr) {
     for (uint32_t id = 0; id < pgm->number_of_process; id++) {
+        THRD_DATA_UPDATE(restart_counter, PGM_SPEC_GET(start_retries));
         if (THRD_DATA_GET(tid) == 0 && THRD_DATA_GET(pid) == 0)
             if (pthread_create(&pgm->thrd[id].tid, attr, routine_launcher_thrd,
                                pgm))
@@ -119,16 +120,12 @@ static uint8_t launch_all(const struct program_list *node) {
  * Stops all launcher_threads from one struct program_specification.
  * Does nothing if the thread already done.
  **/
-static uint8_t stop_launcher_threads(struct program_specification *pgm,
-                                     struct program_list *node) {
-    enum program_auto_restart_status bak = PGM_SPEC_GET(e_auto_restart);
-
-    PGM_SPEC_UPDATE(e_auto_restart, PROGRAM_AUTO_RESTART_FALSE);
+static uint8_t stop_launcher_threads(struct program_specification *pgm) {
     for (uint32_t id = 0; id < pgm->number_of_process; id++) {
+        THRD_DATA_UPDATE(restart_counter, 0);
         if (THRD_DATA_GET(tid) && THRD_DATA_GET(pid))
             kill(THRD_DATA_GET(pid), pgm->stop_signal);
     }
-    PGM_SPEC_UPDATE(e_auto_restart, bak);
     return EXIT_SUCCESS;
 }
 
@@ -147,7 +144,6 @@ static uint8_t do_start(struct program_specification *pgm,
     PGM_STATE_UPDATE(need_to_start, FALSE);
     PGM_STATE_UPDATE(starting, TRUE);
     create_launcher_threads(pgm, &node->attr);
-    /* TODO: verifier que les processus sont bien lancés en tant de temps */
     PGM_STATE_UPDATE(started, TRUE);
     PGM_STATE_UPDATE(starting, FALSE);
     return EXIT_SUCCESS;
@@ -157,9 +153,9 @@ static uint8_t do_stop(struct program_specification *pgm,
                        struct program_list *node) {
     PGM_STATE_UPDATE(need_to_stop, FALSE);
     PGM_STATE_UPDATE(stoping, TRUE);
-    stop_launcher_threads(pgm, node);
-    /* TODO: verifier que les processus sont bien exit en tant de temps */
+    stop_launcher_threads(pgm);
     PGM_STATE_UPDATE(stoping, FALSE);
+    PGM_STATE_UPDATE(started, FALSE);
     return EXIT_SUCCESS;
 }
 
@@ -203,14 +199,15 @@ static void *routine_master_thrd(void *arg) {
     while (1) {
         pgm = node->program_linked_list;
         while (pgm) {
-            client_event = (PGM_STATE_GET(need_to_restart) * CLIENT_START) ||
-                           (PGM_STATE_GET(need_to_stop) * CLIENT_RESTART) ||
-                           (PGM_STATE_GET(need_to_start) * CLIENT_STOP);
+            client_event = (PGM_STATE_GET(need_to_restart) * CLIENT_RESTART) +
+                           (PGM_STATE_GET(need_to_stop) * CLIENT_STOP) +
+                           (PGM_STATE_GET(need_to_start) * CLIENT_START);
             handler[client_event].cb(pgm, node);
             pgm = pgm->next;
         }
         usleep(CLIENT_LISTENING_RATE);
     }
+    /* TODO: free linked list*/
     return NULL;
 }
 
