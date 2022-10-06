@@ -126,10 +126,7 @@ static uint8_t reset_program_default_value_without_name(struct program_specifica
     cnt = 0;
 
     memset(&program->global_status, 0, sizeof(program->global_status));
-    program->global_status.global_status_struct_init             = FALSE;
-    program->global_status.global_status_conf_loaded             = FALSE;
-    program->global_status.global_status_configuration_reloading = FALSE;
-    program->program_state.need_to_restart         = FALSE;
+    memset(&program->program_state, 0, sizeof(program->program_state));
 
     free(program->str_start_command);
     program->str_start_command = NULL;
@@ -346,6 +343,9 @@ static uint8_t parse_config_program_attribute(yaml_parser_t *parser, struct prog
 
                 cnt++;
                 }
+
+            if(cnt >= NUMBER_OF_PROGRAM_SPECIFICATION_FIELD)
+                return (EXIT_FAILURE);
             }
         else
             return (EXIT_FAILURE);
@@ -353,6 +353,9 @@ static uint8_t parse_config_program_attribute(yaml_parser_t *parser, struct prog
 
     if(check_required_attribute_in_program(program) != EXIT_SUCCESS)
         return (EXIT_FAILURE);
+
+    if(program->auto_start == TRUE)
+        program->program_state.need_to_start = TRUE;
 
     program->global_status.global_status_conf_loaded = TRUE;
 
@@ -725,10 +728,7 @@ void free_program_specification(struct program_specification *program)
     cnt = 0;
 
     memset(&program->global_status, 0, sizeof(program->global_status));
-    program->global_status.global_status_struct_init             = FALSE;
-    program->global_status.global_status_conf_loaded             = FALSE;
-    program->global_status.global_status_configuration_reloading = FALSE;
-    program->program_state.need_to_restart         = FALSE;
+    memset(&program->program_state, 0, sizeof(program->program_state));
 
     free(program->str_name);
     program->str_name = NULL;

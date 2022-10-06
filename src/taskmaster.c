@@ -135,6 +135,9 @@ void    stop_and_wait_all_the_program(struct taskmaster *taskmaster)
     number_of_seconds     = 0;
     tmp_number_of_program = 0;
 
+    if(pthread_mutex_lock(&(taskmaster->programs.mutex_program_linked_list)) != 0)
+        return;
+
     actual_program = taskmaster->programs.program_linked_list;
     while(actual_program != NULL)
         {
@@ -148,6 +151,9 @@ void    stop_and_wait_all_the_program(struct taskmaster *taskmaster)
 
         actual_program = actual_program->next;
         }
+
+    if(pthread_mutex_unlock(&(taskmaster->programs.mutex_program_linked_list)) != 0)
+        return;
 
     //TODO wait for all the program to stop
     tmp_number_of_program = taskmaster->programs.number_of_program;

@@ -66,7 +66,6 @@ int main(int argc, char **argv) {
             return (EXIT_FAILURE);
             }
 
-        /* display_program_list(&taskmaster.programs); */
         if (tm_job_control(&taskmaster.programs)) goto exit_error;
         }
 
