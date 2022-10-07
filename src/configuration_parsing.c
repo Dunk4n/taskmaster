@@ -62,7 +62,7 @@ static uint8_t initialize_pgm_config(struct program_specification *program)
     program->program_state.need_to_restart = FALSE;
     program->program_state.restarting = FALSE;
     program->program_state.need_to_stop = FALSE;
-    program->program_state.stoping = FALSE;
+    program->program_state.stopping = FALSE;
     program->program_state.need_to_start = FALSE;
     program->program_state.starting = FALSE;
     program->program_state.need_to_be_removed = FALSE;

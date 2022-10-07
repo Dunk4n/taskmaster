@@ -18,6 +18,7 @@
 # include <sys/socket.h>
 # include <sys/wait.h>
 # include <sys/stat.h>
+# include <sys/time.h>
 # include "yaml.h"
 # include "minishell.h"
 
@@ -139,7 +140,7 @@ struct program_specification
         uint8_t restarting         : 1;
 
         uint8_t need_to_stop       : 1;
-        uint8_t stoping            : 1;
+        uint8_t stopping           : 1;
 
         uint8_t need_to_start      : 1;
         uint8_t starting           : 1;
@@ -181,10 +182,10 @@ struct program_specification
       /* how many time the process can be restarted */
       atomic_int restart_counter;
       uint8_t exit_status; /* value of exit from the current process */
-      struct timeval start_timestamp;
+      struct timeval start_timestamp; /* time when process started */
     } *thrd; /* array of thread_data. One thread per processus */
 
-    struct timeval stop_timestamp;
+    struct timeval stop_timestamp; /* time when client asked to stop */
     char **argv; /* name of program and its arguments in the form of argv */
 
     struct program_list *node;
@@ -299,6 +300,8 @@ typedef uint8_t (*callback)(struct program_specification *,
 
 typedef struct client_handler {
     callback cb;
+    struct program_specification *pgm;
+    struct program_list *node;
 } s_client_handler;
 
 uint8_t tm_job_control(struct program_list *taskmaster);

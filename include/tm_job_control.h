@@ -1,3 +1,6 @@
+#include <inttypes.h>
+#include <string.h>
+
 #ifndef TM_JOB_CONTROL_H
 #define TM_JOB_CONTROL_H
 
@@ -27,7 +30,7 @@
  *   name    is the name of the variable from the struct that we want to update
  *   value   is the value we want to give to this variable
  **/
-#define PGM_SPEC_UPDATE(name, value)                            \
+#define PGM_SPEC_SET(name, value)                               \
     do {                                                        \
         pthread_mutex_lock(&node->mutex_program_linked_list);   \
         pgm->name = value;                                      \
@@ -46,9 +49,9 @@
  *   name    is the name of the variable from the struct that we want to update
  *   value   is the value we want to give to this variable
  **/
-#define THRD_DATA_UPDATE(name, value) \
-    do {                              \
-        pgm->thrd[id].name = value;   \
+#define THRD_DATA_SET(name, value)  \
+    do {                            \
+        pgm->thrd[id].name = value; \
     } while (0)
 
 /* thread_data getter. name is the name of the struct variable name */
@@ -60,7 +63,7 @@
  *   name    is the name of the variable from the struct that we want to update
  *   value   is the value we want to give to this variable
  **/
-#define PGM_STATE_UPDATE(name, value)                           \
+#define PGM_STATE_SET(name, value)                              \
     do {                                                        \
         pthread_mutex_lock(&node->mutex_program_linked_list);   \
         pgm->program_state.name = value;                        \
@@ -73,12 +76,26 @@
  **/
 #define PGM_STATE_GET(name) pgm->program_state.name
 
-typedef enum client_event {
+typedef enum client_event : uint8_t {
     CLIENT_NOTHING = 0,
     CLIENT_START,
     CLIENT_RESTART,
     CLIENT_STOP,
     CLIENT_MAX_EVENT
 } e_client_event;
+
+#define BUF_LOG_LEN 256
+#define TM_LOG(func, fmt, ...)                                        \
+    do {                                                              \
+        char buf[BUF_LOG_LEN] = {0};                                  \
+        time_t t = time(NULL);                                        \
+        char *curr_time = asctime(localtime(&t));                     \
+        uint32_t len = strlen(curr_time) - 1;                         \
+                                                                      \
+        strncpy(buf, curr_time, len);                                 \
+        snprintf(buf + len, BUF_LOG_LEN, " - [" func "] - " fmt "\n", \
+                 __VA_ARGS__);                                        \
+        write(node->tm_fd_log, buf, strlen(buf));                     \
+    } while (0)
 
 #endif
