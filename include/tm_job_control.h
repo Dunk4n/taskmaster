@@ -6,7 +6,9 @@
 #define TM_JOB_CONTROL_H
 
 /* usleep() value for master_thread listening loop - in ms */
-#define CLIENT_LISTENING_RATE (100)
+#define CLIENT_LISTENING_RATE (200)
+#define START_SUPERVISOR_RATE (400)
+#define STOP_SUPERVISOR_RATE (400)
 
 #ifdef DEVELOPEMENT
 #define debug_thrd()                                                     \
@@ -82,43 +84,44 @@
 */
 
 #define BUF_LOG_LEN 256
-#define TM_LOG(func, fmt, ...)                                        \
-    do {                                                              \
-        pthread_mutex_lock(&node->mtx_log);                           \
-        char buf[BUF_LOG_LEN] = {0};                                  \
-        time_t t = time(NULL);                                        \
-        char *curr_time = asctime(localtime(&t));                     \
-        uint32_t len = strlen(curr_time) - 5;                         \
-                                                                      \
-        strncpy(buf, curr_time, len);                                 \
-        snprintf(buf + len, BUF_LOG_LEN, " - [" func "] - " fmt "\n", \
-                 __VA_ARGS__);                                        \
-        write(node->tm_fd_log, buf, strlen(buf));                     \
-        pthread_mutex_unlock(&node->mtx_log);                         \
+#define TM_LOG(func, fmt, ...)                                       \
+    do {                                                             \
+        pthread_mutex_lock(&node->mtx_log);                          \
+        char buf[BUF_LOG_LEN] = {0};                                 \
+        time_t t = time(NULL);                                       \
+        char *curr_time = asctime(localtime(&t));                    \
+        uint32_t len = strlen(curr_time) - 5;                        \
+                                                                     \
+        strncpy(buf, curr_time, len);                                \
+        snprintf(buf + len, BUF_LOG_LEN, "- [" func "] - " fmt "\n", \
+                 __VA_ARGS__);                                       \
+        write(node->tm_fd_log, buf, strlen(buf));                    \
+        pthread_mutex_unlock(&node->mtx_log);                        \
     } while (0)
 
 #define TM_THRD_LOG(status)                                                \
-    TM_LOG("launcher_thread()",                                            \
-           "thread [%lu] - pgm [%s] - pid [%d] - restart_counter: [%d] | " \
-           "[" status "]",                                                 \
-           THRD_DATA_GET(tid), PGM_SPEC_GET(str_name), THRD_DATA_GET(pid), \
+    TM_LOG("launcher thread",                                              \
+           "[%s pid[%d]] - tid[%lu] - restart_counter[%d] • [" status "]", \
+           PGM_SPEC_GET(str_name), THRD_DATA_GET(pid), THRD_DATA_GET(tid), \
            THRD_DATA_GET(restart_counter));
 
-#define TM_CHILDCONTROL_LOG(status)                                        \
-    TM_LOG("child_control()",                                              \
-           "thread [%lu] - pgm [%s] - pid [%d] - restart_counter: [%d] | " \
-           "[" status " %d]",                                              \
-           THRD_DATA_GET(tid), PGM_SPEC_GET(str_name), THRD_DATA_GET(pid), \
+#define TM_CHILDCONTROL_LOG(status)                                           \
+    TM_LOG("child supervisor",                                                \
+           "[%s pid[%d]] - tid[%lu] - restart_counter[%d] • [" status " %d]", \
+           PGM_SPEC_GET(str_name), THRD_DATA_GET(pid), THRD_DATA_GET(tid),    \
            THRD_DATA_GET(restart_counter), child_ret);
 
-#define TM_START_LOG(status)                                               \
-    TM_LOG("start time watcher",                                           \
-           "[%s] - proc nb [%d] - pid [%d] - thread [%lu] "                \
-           "[" status                                                      \
-           "] - [expected minimum "                                        \
-           "time of survey of this process: %d]",                          \
-           PGM_SPEC_GET(str_name), THRD_DATA_GET(rid), THRD_DATA_GET(pid), \
-           THRD_DATA_GET(tid), PGM_SPEC_GET(start_time));
+#define TM_STOP_LOG(status)                                              \
+    TM_LOG("stop supervisor", "[%s] - stop_time[%d sec] • [" status "]", \
+           PGM_SPEC_GET(str_name), PGM_SPEC_GET(stop_time));
+
+#define TM_START_LOG(status)                                                 \
+    TM_LOG(                                                                  \
+        "start supervisor",                                                  \
+        "[%s pid[%d]] - rank[%d] - tid[%lu] - start_time[%d sec] • [" status \
+        "]",                                                                 \
+        PGM_SPEC_GET(str_name), THRD_DATA_GET(pid), THRD_DATA_GET(rid),      \
+        THRD_DATA_GET(tid), PGM_SPEC_GET(start_time));
 
 typedef enum client_event : uint8_t {
     CLIENT_NOTHING = 0,
@@ -127,12 +130,5 @@ typedef enum client_event : uint8_t {
     CLIENT_STOP,
     CLIENT_MAX_EVENT
 } e_client_event;
-
-/* used to keep in memory only thread_data struct we want to compare 'later' */
-typedef struct timewatch {
-    uint32_t rid; /* rank nb */
-    pthread_t tid; /* thread id */
-    uint8_t ok; /* if true, the corresponding thread isn't checked again */
-} s_timewatch;
 
 #endif

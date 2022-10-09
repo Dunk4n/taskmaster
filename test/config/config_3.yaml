@@ -28,7 +28,7 @@ programs:
     autorestart: true
     exitcodes: 0
     startretries: 2
-    starttime: 5
+    starttime: 10
     stopsignal: USR1
     stoptime: 10
     stdout: /tmp/beta.stdout

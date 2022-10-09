@@ -300,13 +300,19 @@ void    free_taskmaster(struct taskmaster *taskmaster);
 
 /* tm_job_control.c */
 typedef uint8_t (*callback)(struct program_specification *,
-                            struct program_list *node);
+                            struct program_list *);
 
 typedef struct client_handler {
     callback cb;
-    struct program_specification *pgm;
-    struct program_list *node;
 } s_client_handler;
+
+/* used to keep in memory only thread_data struct we want to compare 'later' */
+typedef struct time_control {
+    struct program_specification *pgm;
+    struct timeval start;
+    uint32_t pid;
+    uint32_t rid;
+} s_time_control;
 
 uint8_t tm_job_control(struct program_list *taskmaster);
 
