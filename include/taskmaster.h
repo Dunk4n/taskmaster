@@ -132,6 +132,8 @@ struct program_specification
         uint8_t global_status_configuration_reloading : 1;
         } global_status;
 
+    pthread_mutex_t mtx_client_event;
+    pthread_mutex_t mtx_pgm_state;
     struct
         {
         uint8_t started            : 1;
@@ -185,6 +187,7 @@ struct program_specification
       struct timeval start_timestamp; /* time when process started */
     } *thrd; /* array of thread_data. One thread per processus */
 
+    atomic_uint nb_thread_alive;
     struct timeval stop_timestamp; /* time when client asked to stop */
     char **argv; /* name of program and its arguments in the form of argv */
 
@@ -215,6 +218,7 @@ struct program_list
     struct program_specification *last_program_linked_list;
     uint32_t                      number_of_program;
 
+    pthread_mutex_t mtx_log;
     int32_t tm_fd_log;
 };
 
