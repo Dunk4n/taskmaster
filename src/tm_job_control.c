@@ -152,11 +152,11 @@ static void *routine_launcher_thrd(void *arg) {
     if (id == -1)
         exit_thrd(NULL, id, "couldn't find thread id", __FILE__, __func__,
                   __LINE__);
-    time_control = calloc(PGM_SPEC_GET(start_retries), sizeof(*time_control));
+    time_control = calloc(THRD_DATA_GET(restart_counter), sizeof(*time_control));
     if (!time_control)
         exit_thrd(pgm, id, "calloc() failed", __FILE__, __func__, __LINE__);
 
-    while (pgm_restart >= 0) {
+    while (pgm_restart > 0) {
         pid = fork();
         if (pid == -1)
             exit_thrd(pgm, id, "fork() failed", __FILE__, __func__, __LINE__);
@@ -185,7 +185,7 @@ static void *routine_launcher_thrd(void *arg) {
 static uint8_t create_launcher_threads(struct program_list *node,
                                        struct program_specification *pgm) {
     for (uint32_t id = 0; id < pgm->number_of_process; id++) {
-        THRD_DATA_SET(restart_counter, PGM_SPEC_GET(start_retries));
+        THRD_DATA_SET(restart_counter, PGM_SPEC_GET(start_retries) + 1);
         if (THRD_DATA_GET(tid) == 0 && THRD_DATA_GET(pid) == 0) {
             THRD_DATA_SET(exit_status, 0);
             if (pthread_create(&pgm->thrd[id].tid, &node->attr,
@@ -226,7 +226,7 @@ static uint8_t stop_all_processus(struct program_specification *pgm,
     gettimeofday(&stop, NULL);
     PGM_SPEC_SET(stop_timestamp, stop);
     for (uint32_t id = 0; id < pgm->number_of_process; id++) {
-        THRD_DATA_SET(restart_counter, -1);
+        THRD_DATA_SET(restart_counter, 0);
         if (THRD_DATA_GET(tid) && THRD_DATA_GET(pid)) {
             kill(THRD_DATA_GET(pid), pgm->stop_signal);
         }
@@ -240,7 +240,7 @@ static uint8_t stop_all_processus(struct program_specification *pgm,
  **/
 static uint8_t kill_all_processus(struct program_specification *pgm) {
     for (uint32_t id = 0; id < pgm->number_of_process; id++) {
-        THRD_DATA_SET(restart_counter, -1);
+        THRD_DATA_SET(restart_counter, 0);
         if (THRD_DATA_GET(tid) && THRD_DATA_GET(pid)) {
             kill(THRD_DATA_GET(pid), SIGTERM);
         }

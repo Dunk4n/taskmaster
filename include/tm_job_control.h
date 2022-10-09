@@ -11,10 +11,12 @@
 #define STOP_SUPERVISOR_RATE (400)
 
 #ifdef DEVELOPEMENT
-#define debug_thrd()                                                     \
-    do {                                                                 \
-        printf("[%-14s- %-2d] - tid %lu - pid %d\n", pgm->str_name,      \
-               pgm->thrd[id].rid, pgm->thrd[id].tid, pgm->thrd[id].pid); \
+#define debug_thrd()                                                         \
+    do {                                                                     \
+        printf("[%-14s- %-2d] - tid %lu - pid %d - cnt %d\n", pgm->str_name, \
+               pgm->thrd[id].rid, pgm->thrd[id].tid, pgm->thrd[id].pid,      \
+               pgm->thrd[id].restart_counter);                               \
+        fflush(stdout);                                                      \
     } while (0)
 #else
 #define debug_thrd()
@@ -118,10 +120,10 @@
 #define TM_START_LOG(status)                                                 \
     TM_LOG(                                                                  \
         "start supervisor",                                                  \
-        "[%s pid[%d]] - rank[%d] - tid[%lu] - start_time[%d sec] • [" status \
+        "[%s pid[%d]] - tid[%lu] - rank[%d] - start_time[%d sec] • [" status \
         "]",                                                                 \
-        PGM_SPEC_GET(str_name), THRD_DATA_GET(pid), THRD_DATA_GET(rid),      \
-        THRD_DATA_GET(tid), PGM_SPEC_GET(start_time));
+        PGM_SPEC_GET(str_name), THRD_DATA_GET(pid), THRD_DATA_GET(tid),      \
+        THRD_DATA_GET(rid), PGM_SPEC_GET(start_time));
 
 typedef enum client_event : uint8_t {
     CLIENT_NOTHING = 0,
