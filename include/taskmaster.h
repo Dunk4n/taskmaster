@@ -187,7 +187,7 @@ struct program_specification
       struct timeval start_timestamp; /* time when process started */
     } *thrd; /* array of thread_data. One thread per processus */
 
-    atomic_uint nb_thread_alive;
+    atomic_uint nb_thread_alive; /* count how many launcher thread are alive*/
     struct timeval stop_timestamp; /* time when client asked to stop */
     char **argv; /* name of program and its arguments in the form of argv */
 

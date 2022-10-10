@@ -18,6 +18,7 @@ static void exit_thread(struct program_specification *pgm, int32_t id) {
     THRD_DATA_SET(pid, 0);
     THRD_DATA_SET(tid, 0);
     pgm->nb_thread_alive -= 1;
+    if (PGM_SPEC_GET(nb_thread_alive) <= 0) PGM_STATE_SET(started, FALSE);
 }
 
 static int32_t get_id(const struct program_specification *pgm) {
@@ -386,8 +387,6 @@ static void *routine_master_thrd(void *arg) {
     while (1) {
         pgm = node->program_linked_list;
         while (pgm) {
-            /* if (!PGM_SPEC_GET(nb_thread_alive)) PGM_STATE_SET(started,
-             * FALSE); */
             client_event = ((PGM_STATE_GET(need_to_restart) * CLIENT_RESTART) +
                             (PGM_STATE_GET(need_to_stop) * CLIENT_STOP) +
                             (PGM_STATE_GET(need_to_start) * CLIENT_START));
