@@ -75,7 +75,12 @@ static int32_t child_control(const struct program_specification *pgm,
  **/
 static void configure_and_launch(struct program_list *node,
                                  struct program_specification *pgm) {
-    if (pgm->umask) umask(pgm->umask);
+    if (pgm->umask) umask(pgm->umask); /* default file mode creation */
+    /* privilege de-escalation if launched in sudo mode */
+    if (getuid() == 0)
+        if (setuid(atoi(getenv("SUDO_UID"))) == -1)
+            TM_LOG("setuid()", "pid [%d] - failed to set uid to %d", getpid(),
+                   atoi(getenv("SUDO_UID")));
     if (pgm->working_dir) {
         if (chdir((char *)pgm->working_dir) == -1)
             TM_LOG("chdir()", "pid [%d] - failed to change directory to %s",
