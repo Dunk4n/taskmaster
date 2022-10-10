@@ -116,7 +116,7 @@ enum program_specification_field
     };
 
 /**
-* This structure represente a program that will be executed by taskmaster
+* This structure represents a program that will be executed by taskmaster
 */
 struct program_specification
 {

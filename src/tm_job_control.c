@@ -153,7 +153,8 @@ static void *routine_launcher_thrd(void *arg) {
     if (id == -1)
         exit_thrd(NULL, id, "couldn't find thread id", __FILE__, __func__,
                   __LINE__);
-    time_control = calloc(THRD_DATA_GET(restart_counter), sizeof(*time_control));
+    time_control =
+        calloc(THRD_DATA_GET(restart_counter), sizeof(*time_control));
     if (!time_control)
         exit_thrd(pgm, id, "calloc() failed", __FILE__, __func__, __LINE__);
 
@@ -199,17 +200,13 @@ static uint8_t create_launcher_threads(struct program_list *node,
 }
 
 /*
- * wrapper around create_launcher_thread() to loop thru the
- * program_specification linked list
+ * Set need_to_start flag to programs which have their auto_start flag to true
  **/
-static uint8_t launch_all(struct program_list *node) {
+static uint8_t set_autostart(struct program_list *node) {
     struct program_specification *pgm = node->program_linked_list;
 
     for (uint32_t i = 0; i < node->number_of_program; i++) {
-        if (pgm->auto_start) {
-            PGM_STATE_SET(started, TRUE);
-            if (create_launcher_threads(node, pgm)) return EXIT_FAILURE;
-        }
+        if (pgm->auto_start) PGM_STATE_SET(need_to_start, TRUE);
         pgm = pgm->next;
     }
     return EXIT_SUCCESS;
@@ -257,7 +254,7 @@ static uint8_t do_nothing(struct program_specification *pgm,
 }
 
 /*
- * start threads which aren't already started. Set program state.
+ * starts threads which aren't already started. Set program state.
  **/
 static uint8_t do_start(struct program_specification *pgm,
                         struct program_list *node) {
@@ -365,13 +362,9 @@ static void init_handlers(s_client_handler *handler) {
 }
 
 /*
- * This is the routine of the master thread. It begins with launching all
- * launcher_threads (those who execve then monitor there child) for all programs
+ * The master thread listen the clients events - start, stop, restart - and
+ * handle them.
  *
- * It's also responsible for killing or restarting all thread from a program in
- * case of config reload. Or just kill a program directly.
- * It monitors the program_specification linked list to see whether the client
- * asks to stop a program or not.
  * @args:
  *   void *arg  is the address of the struct program_list which is the node
  *              containing the program_specification linked list & metadata
@@ -383,7 +376,7 @@ static void *routine_master_thrd(void *arg) {
     uint8_t client_event;
 
     init_handlers(handler);
-    launch_all(node);
+    set_autostart(node);
     while (1) {
         pgm = node->program_linked_list;
         while (pgm) {
