@@ -2,10 +2,23 @@
 
 #include "taskmaster.h"
 
+/* time diff in s */
+static uint32_t timediff(struct timeval *time1) {
+    struct timeval time2;
+
+    gettimeofday(&time2, NULL);
+    return (((time2.tv_sec - time1->tv_sec) * 1000000) +
+            (time2.tv_usec - time1->tv_usec)) /
+           1000000;
+}
+
+/* Set pid & tid of the related thread_data structure to 0 */
 static void exit_thread(struct program_specification *pgm, int32_t id) {
     if (!pgm || id == -1) return;
-    THRD_DATA_UPDATE(pid, 0);
-    THRD_DATA_UPDATE(tid, 0);
+    THRD_DATA_SET(pid, 0);
+    THRD_DATA_SET(tid, 0);
+    pgm->nb_thread_alive -= 1;
+    if (PGM_SPEC_GET(nb_thread_alive) <= 0) PGM_STATE_SET(started, FALSE);
 }
 
 static int32_t get_id(const struct program_specification *pgm) {
@@ -16,21 +29,111 @@ static int32_t get_id(const struct program_specification *pgm) {
     return -1;
 }
 
+/*
+ * wait for child to exit() or to be killed by any signal
+ **/
 static int32_t child_control(const struct program_specification *pgm,
                              int32_t id, pid_t pid) {
-    int32_t wstatus, child_ret = 0;
+    struct program_list *node = pgm->node;
+    int32_t w, wstatus, child_ret = 0;
+    uint8_t expected = FALSE;
 
-    waitpid(pid, &wstatus, 0);
-    if (WIFEXITED(wstatus)) {
-        child_ret = WEXITSTATUS(wstatus);
-        THRD_DATA_UPDATE(exit_status, child_ret);
-        printf("EXIT: exit_status: %d\n", child_ret);
-    } else if (WIFSIGNALED(wstatus)) {
-        child_ret = WTERMSIG(wstatus);
-        printf("SIGNAL: exit_status: %d\n", child_ret);
-    }
-    THRD_DATA_UPDATE(restart_counter, THRD_DATA_GET(restart_counter) - 1);
+    do {
+        w = waitpid(pid, &wstatus, WUNTRACED | WCONTINUED);
+        if (w == -1)
+            log_error("waitpid() failed", __FILE__, __func__, __LINE__);
+        if (WIFEXITED(wstatus)) {
+            child_ret = WEXITSTATUS(wstatus);
+            THRD_DATA_SET(exit_status, child_ret);
+            for (uint16_t i = 0;
+                 !expected && i < PGM_SPEC_GET(exit_codes_number); i++)
+                expected = child_ret == PGM_SPEC_GET(exit_codes)[i];
+            if (expected) {
+                if (PGM_SPEC_GET(e_auto_restart) ==
+                    PROGRAM_AUTO_RESTART_UNEXPECTED)
+                    THRD_DATA_SET(restart_counter, 0);
+                TM_CHILDCONTROL_LOG("EXITED WITH EXPECTED STATUS");
+            } else
+                TM_CHILDCONTROL_LOG("EXITED WITH UNEXPECTED STATUS");
+        } else if (WIFSIGNALED(wstatus)) {
+            child_ret = WTERMSIG(wstatus);
+            TM_CHILDCONTROL_LOG("KILLED BY SIGNAL");
+        } else if (WIFSTOPPED(wstatus)) {
+            child_ret = WSTOPSIG(wstatus);
+            TM_CHILDCONTROL_LOG("STOPPED BY SIGNAL");
+        } else if (WIFCONTINUED(wstatus)) {
+            TM_CHILDCONTROL_LOG("CONTINUED");
+        }
+    } while (!WIFEXITED(wstatus) && !WIFSIGNALED(wstatus));
     return child_ret;
+}
+
+/*
+ * Sets configuration asked from config file like umask, working directory
+ * or file logging.
+ * Then execve() the process.
+ **/
+static void configure_and_launch(struct program_list *node,
+                                 struct program_specification *pgm) {
+    if (pgm->umask) umask(pgm->umask); /* default file mode creation */
+    /* privilege de-escalation if launched in sudo mode */
+    if (getuid() == 0)
+        if (setuid(atoi(getenv("SUDO_UID"))) == -1)
+            TM_LOG("setuid()", "pid [%d] - failed to set uid to %d", getpid(),
+                   atoi(getenv("SUDO_UID")));
+    if (pgm->working_dir) {
+        if (chdir((char *)pgm->working_dir) == -1)
+            TM_LOG("chdir()", "pid [%d] - failed to change directory to %s",
+                   getpid(), PGM_SPEC_GET(working_dir));
+    }
+    if (pgm->log.out != UNINITIALIZED_FD) dup2(pgm->log.out, STDOUT_FILENO);
+    if (pgm->log.err != UNINITIALIZED_FD) dup2(pgm->log.err, STDERR_FILENO);
+    if (execve(pgm->argv[0], pgm->argv, (char **)pgm->env) == -1) {
+        TM_LOG("execve()", "pid [%d] - failed to change call processus %s",
+               getpid(), PGM_SPEC_GET(str_name));
+        err_display("execve() failed", __FILE__, __func__, __LINE__);
+    }
+}
+
+static void *routine_start_supervisor(void *arg) {
+    s_time_control *time_control = arg;
+    struct program_specification *pgm = time_control->pgm;
+    struct program_list *node = pgm->node;
+    uint32_t id = time_control->rid;
+
+    while (timediff(&time_control->start) < PGM_SPEC_GET(start_time)) {
+        usleep(START_SUPERVISOR_RATE);
+        if (time_control->pid != THRD_DATA_GET(pid)) {
+            TM_START_LOG("DIDN'T LAUNCHED CORRECTLY");
+            goto exit_routine;
+        }
+    }
+    TM_START_LOG("LAUNCHED CORRECTLY");
+
+exit_routine:
+    return NULL;
+}
+
+static void thread_data_update(struct program_list *node,
+                               struct program_specification *pgm, int32_t id,
+                               pid_t pid, s_time_control *time_control) {
+    struct timeval start;
+    pthread_t tid;
+
+    gettimeofday(&start, NULL);
+    THRD_DATA_SET(start_timestamp, start);
+    THRD_DATA_SET(pid, pid);
+    debug_thrd();
+    THRD_DATA_SET(restart_counter, THRD_DATA_GET(restart_counter) - 1);
+    time_control[THRD_DATA_GET(restart_counter)].pgm = pgm;
+    time_control[THRD_DATA_GET(restart_counter)].pid = pid;
+    time_control[THRD_DATA_GET(restart_counter)].rid = id;
+    time_control[THRD_DATA_GET(restart_counter)].start = start;
+    if (pthread_create(&tid, &node->attr, routine_start_supervisor,
+                       &time_control[THRD_DATA_GET(restart_counter)]))
+        err_display("failed to create launcher thread", __FILE__, __func__,
+                    __LINE__);
+    TM_THRD_LOG("LAUNCHED");
 }
 
 /*
@@ -46,39 +149,37 @@ static int32_t child_control(const struct program_specification *pgm,
  **/
 static void *routine_launcher_thrd(void *arg) {
     struct program_specification *pgm = arg;
+    struct program_list *node = pgm->node;
+    s_time_control *time_control;
     int32_t id = get_id(pgm), pgm_restart = 1;
     pid_t pid;
 
+    pgm->nb_thread_alive += 1;
     if (id == -1)
         exit_thrd(NULL, id, "couldn't find thread id", __FILE__, __func__,
                   __LINE__);
+    time_control =
+        calloc(THRD_DATA_GET(restart_counter), sizeof(*time_control));
+    if (!time_control)
+        exit_thrd(pgm, id, "calloc() failed", __FILE__, __func__, __LINE__);
+
     while (pgm_restart > 0) {
-        printf("restart: %u\n", THRD_DATA_GET(restart_counter));
         pid = fork();
         if (pid == -1)
             exit_thrd(pgm, id, "fork() failed", __FILE__, __func__, __LINE__);
         if (pid == 0) {
-            if (pgm->umask) umask(pgm->umask);
-            if (pgm->working_dir) {
-                if (chdir((char *)pgm->working_dir) == -1) {
-                    /* TODO: log error */
-                }
-            }
-            if (pgm->log.out != UNINITIALIZED_FD)
-                dup2(pgm->log.out, STDOUT_FILENO);
-            if (pgm->log.err != UNINITIALIZED_FD)
-                dup2(pgm->log.err, STDERR_FILENO);
-            if (execve(pgm->argv[0], pgm->argv, (char **)pgm->env) == -1)
-                exit_thrd(NULL, id, "execve() failed", __FILE__, __func__,
-                          __LINE__);
+            configure_and_launch(node, pgm);
             exit(EXIT_FAILURE);
         } else {
-            THRD_DATA_UPDATE(pid, pid);
-            debug_thrd();
+            thread_data_update(node, pgm, id, pid, time_control);
             child_control(pgm, id, pid);
-            pgm_restart = pgm->e_auto_restart * THRD_DATA_GET(restart_counter);
+            pgm_restart =
+                pgm->e_auto_restart * (THRD_DATA_GET(restart_counter));
         }
     }
+
+    TM_THRD_LOG("EXITED");
+    free(time_control);
     exit_thread(pgm, id);
     return NULL;
 }
@@ -86,45 +187,66 @@ static void *routine_launcher_thrd(void *arg) {
 /*
  * Creates all launcher_threads from one struct program_specification, in a
  * detached mode
- * Does nothing if the thread already exists.
+ * If the thread already exists the restart_counter is still reset.
  **/
-static uint8_t create_launcher_threads(struct program_specification *pgm,
-                                       const pthread_attr_t *attr) {
+static uint8_t create_launcher_threads(struct program_list *node,
+                                       struct program_specification *pgm) {
     for (uint32_t id = 0; id < pgm->number_of_process; id++) {
-        THRD_DATA_UPDATE(restart_counter, PGM_SPEC_GET(start_retries));
-        if (THRD_DATA_GET(tid) == 0 && THRD_DATA_GET(pid) == 0)
-            if (pthread_create(&pgm->thrd[id].tid, attr, routine_launcher_thrd,
-                               pgm))
+        THRD_DATA_SET(restart_counter, PGM_SPEC_GET(start_retries) + 1);
+        if (THRD_DATA_GET(tid) == 0 && THRD_DATA_GET(pid) == 0) {
+            THRD_DATA_SET(exit_status, 0);
+            if (pthread_create(&pgm->thrd[id].tid, &node->attr,
+                               routine_launcher_thrd, pgm))
                 log_error("failed to create launcher thread", __FILE__,
                           __func__, __LINE__);
+        }
     }
     return EXIT_SUCCESS;
 }
 
 /*
- * wrapper around create_launcher_thread() to loop thru the
- * program_specification linked list
+ * Set need_to_start flag to programs which have their auto_start flag to true
  **/
-static uint8_t launch_all(const struct program_list *node) {
+static uint8_t set_autostart(struct program_list *node) {
     struct program_specification *pgm = node->program_linked_list;
 
     for (uint32_t i = 0; i < node->number_of_program; i++) {
-        if (pgm->auto_start)
-            if (create_launcher_threads(pgm, &node->attr)) return EXIT_FAILURE;
+        if (pgm->auto_start) PGM_STATE_SET(need_to_start, TRUE);
         pgm = pgm->next;
     }
     return EXIT_SUCCESS;
 }
 
 /*
- * Stops all launcher_threads from one struct program_specification.
- * Does nothing if the thread already done.
+ * Stops all processus from one struct program_specification with the signal
+ * set in configuration file.
+ * Does nothing if the thread is already down.
  **/
-static uint8_t stop_launcher_threads(struct program_specification *pgm) {
+static uint8_t stop_all_processus(struct program_specification *pgm,
+                                  struct program_list *node) {
+    struct timeval stop;
+
+    gettimeofday(&stop, NULL);
+    PGM_SPEC_SET(stop_timestamp, stop);
     for (uint32_t id = 0; id < pgm->number_of_process; id++) {
-        THRD_DATA_UPDATE(restart_counter, 0);
-        if (THRD_DATA_GET(tid) && THRD_DATA_GET(pid))
+        THRD_DATA_SET(restart_counter, 0);
+        if (THRD_DATA_GET(tid) && THRD_DATA_GET(pid)) {
             kill(THRD_DATA_GET(pid), pgm->stop_signal);
+        }
+    }
+    return EXIT_SUCCESS;
+}
+
+/*
+ * Kills all processus from one struct program_specification with SIGTERM
+ * Does nothing if the thread is already down.
+ **/
+static uint8_t kill_all_processus(struct program_specification *pgm) {
+    for (uint32_t id = 0; id < pgm->number_of_process; id++) {
+        THRD_DATA_SET(restart_counter, 0);
+        if (THRD_DATA_GET(tid) && THRD_DATA_GET(pid)) {
+            kill(THRD_DATA_GET(pid), SIGTERM);
+        }
     }
     return EXIT_SUCCESS;
 }
@@ -137,53 +259,117 @@ static uint8_t do_nothing(struct program_specification *pgm,
 }
 
 /*
- * start threads which aren't already started.
+ * starts threads which aren't already started. Set program state.
  **/
 static uint8_t do_start(struct program_specification *pgm,
                         struct program_list *node) {
-    PGM_STATE_UPDATE(need_to_start, FALSE);
-    PGM_STATE_UPDATE(starting, TRUE);
-    create_launcher_threads(pgm, &node->attr);
-    PGM_STATE_UPDATE(started, TRUE);
-    PGM_STATE_UPDATE(starting, FALSE);
+    pthread_mutex_lock(&pgm->mtx_client_event);
+    if (PGM_STATE_GET(starting) || PGM_STATE_GET(stopping)) {
+        pthread_mutex_unlock(&pgm->mtx_client_event);
+        return EXIT_FAILURE;
+    }
+
+    PGM_STATE_SET(need_to_start, FALSE);
+    PGM_STATE_SET(starting, TRUE);
+    TM_LOG("start", "%s", PGM_SPEC_GET(str_name));
+    pthread_mutex_unlock(&pgm->mtx_client_event);
+    create_launcher_threads(node, pgm);
+
+    PGM_STATE_SET(started, TRUE);
+    PGM_STATE_SET(starting, FALSE);
+
     return EXIT_SUCCESS;
 }
 
+/* checks if the processes are stopped in the given time */
+void *routine_stop_supervisor(void *arg) {
+    struct program_specification *pgm = arg;
+    struct program_list *node = pgm->node;
+    uint8_t alive = TRUE;
+
+    while (alive &&
+           timediff(&PGM_SPEC_GET(stop_timestamp)) < PGM_SPEC_GET(stop_time)) {
+        usleep(STOP_SUPERVISOR_RATE);
+        alive = FALSE;
+        for (uint32_t id = 0; id < PGM_SPEC_GET(number_of_process); id++)
+            if (THRD_DATA_GET(tid) && THRD_DATA_GET(pid)) alive = TRUE;
+    }
+    if (alive) {
+        kill_all_processus(pgm);
+        TM_STOP_LOG("PROCESSUS HAD BEEN KILLED");
+    } else
+        TM_STOP_LOG("PROCESSUS STOPPED AS EXPECTED");
+
+    PGM_STATE_SET(stopping, FALSE);
+    PGM_STATE_SET(started, FALSE);
+    return NULL;
+}
+
+/*
+ * Stop threads which are alive. Update program state. Check if processus
+ * stopped quickly enough according to config file and kill them if not.
+ **/
 static uint8_t do_stop(struct program_specification *pgm,
                        struct program_list *node) {
-    PGM_STATE_UPDATE(need_to_stop, FALSE);
-    PGM_STATE_UPDATE(stoping, TRUE);
-    stop_launcher_threads(pgm);
-    PGM_STATE_UPDATE(stoping, FALSE);
-    PGM_STATE_UPDATE(started, FALSE);
+    pthread_t tid;
+
+    pthread_mutex_lock(&pgm->mtx_client_event);
+    if (PGM_STATE_GET(starting) || PGM_STATE_GET(stopping)) {
+        pthread_mutex_unlock(&pgm->mtx_client_event);
+        return EXIT_FAILURE;
+    }
+
+    PGM_STATE_SET(stopping, TRUE);
+    PGM_STATE_SET(need_to_stop, FALSE);
+    TM_LOG("stop", "%s", PGM_SPEC_GET(str_name));
+    pthread_mutex_unlock(&pgm->mtx_client_event);
+    stop_all_processus(pgm, node);
+
+    if (pthread_create(&tid, &node->attr, routine_stop_supervisor, pgm)) {
+        PGM_STATE_SET(stopping, FALSE);
+        PGM_STATE_SET(started, FALSE);
+        TM_LOG("stop control",
+               "[%s] - failed to create routine_timer_stop_watch thread",
+               PGM_SPEC_GET(str_name));
+        log_error("failed to create routine_timer_stop_watch thread", __FILE__,
+                  __func__, __LINE__);
+    }
+
     return EXIT_SUCCESS;
 }
 
 static uint8_t do_restart(struct program_specification *pgm,
                           struct program_list *node) {
-    PGM_STATE_UPDATE(need_to_restart, FALSE);
-    PGM_STATE_UPDATE(restarting, TRUE);
-    do_stop(pgm, node);
-    do_start(pgm, node);
-    PGM_STATE_UPDATE(restarting, FALSE);
+    pthread_mutex_lock(&pgm->mtx_client_event);
+    if (PGM_STATE_GET(starting) || PGM_STATE_GET(stopping) ||
+        PGM_STATE_GET(restarting)) {
+        pthread_mutex_unlock(&pgm->mtx_client_event);
+        return EXIT_FAILURE;
+    }
+
+    PGM_STATE_SET(need_to_restart, FALSE);
+    PGM_STATE_SET(restarting, TRUE);
+    TM_LOG("restart", "%s", PGM_SPEC_GET(str_name));
+    pthread_mutex_unlock(&pgm->mtx_client_event);
+    if (do_stop(pgm, node)) goto exit_restart;
+    if (do_start(pgm, node)) goto exit_restart;
+
+exit_restart:
+    PGM_STATE_SET(restarting, FALSE);
     return EXIT_SUCCESS;
 }
 
-static void init_listeners(s_client_handler *listener) {
-    listener[CLIENT_NOTHING].cb = do_nothing;
-    listener[CLIENT_START].cb = do_start;
-    listener[CLIENT_RESTART].cb = do_restart;
-    listener[CLIENT_STOP].cb = do_stop;
+static void init_handlers(s_client_handler *handler) {
+    handler[CLIENT_NOTHING].cb = do_nothing;
+    handler[CLIENT_START].cb = do_start;
+    handler[CLIENT_RESTART].cb = do_restart;
+    handler[CLIENT_STOP].cb = do_stop;
 }
 
 /*
- * This is the routine of the master thread. It begins with launching all
- * launcher_threads (those who execve then monitor there child) for all programs
+ * The master thread listen the clients events - start, stop, restart - and
+ * handle them.
  *
- * It's also responsible for killing or restarting all thread from a program in
- * case of config reload. Or just kill a program directly.
- * It monitors the program_specification linked list to see whether the client
- * asks to stop a program or not.
  * @args:
  *   void *arg  is the address of the struct program_list which is the node
  *              containing the program_specification linked list & metadata
@@ -194,15 +380,15 @@ static void *routine_master_thrd(void *arg) {
     s_client_handler handler[CLIENT_MAX_EVENT];
     uint8_t client_event;
 
-    init_listeners(handler);
-    launch_all(node);
+    init_handlers(handler);
+    set_autostart(node);
     while (1) {
         pgm = node->program_linked_list;
         while (pgm) {
-            client_event = (PGM_STATE_GET(need_to_restart) * CLIENT_RESTART) +
-                           (PGM_STATE_GET(need_to_stop) * CLIENT_STOP) +
-                           (PGM_STATE_GET(need_to_start) * CLIENT_START);
-            handler[client_event].cb(pgm, node);
+            client_event = ((PGM_STATE_GET(need_to_restart) * CLIENT_RESTART) +
+                            (PGM_STATE_GET(need_to_stop) * CLIENT_STOP) +
+                            (PGM_STATE_GET(need_to_start) * CLIENT_START));
+            if (client_event) handler[client_event].cb(pgm, node);
             pgm = pgm->next;
         }
         usleep(CLIENT_LISTENING_RATE);
@@ -216,8 +402,8 @@ static void *routine_master_thrd(void *arg) {
  **/
 static void init_thread(const struct program_specification *pgm) {
     for (uint32_t id = 0; id < pgm->number_of_process; id++) {
-        THRD_DATA_UPDATE(rid, id);
-        THRD_DATA_UPDATE(restart_counter, pgm->start_retries);
+        THRD_DATA_SET(rid, id);
+        THRD_DATA_SET(restart_counter, pgm->start_retries);
     }
 }
 
@@ -280,6 +466,7 @@ uint8_t tm_job_control(struct program_list *node) {
                        node))
         log_error("failed to create master thread", __FILE__, __func__,
                   __LINE__);
+    TM_LOG("taskmaster", "program started", NULL);
     return EXIT_SUCCESS;
 }
 

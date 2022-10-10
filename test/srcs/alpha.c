@@ -9,7 +9,7 @@
 #endif
 
 #ifndef SLEEP_TIME
-#define SLEEP_TIME 4
+#define SLEEP_TIME 8
 #endif
 
 int main(int ac, char **av, char **env) {

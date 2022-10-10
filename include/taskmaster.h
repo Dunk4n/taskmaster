@@ -18,6 +18,7 @@
 # include <sys/socket.h>
 # include <sys/wait.h>
 # include <sys/stat.h>
+# include <sys/time.h>
 # include "yaml.h"
 # include "minishell.h"
 
@@ -115,7 +116,7 @@ enum program_specification_field
     };
 
 /**
-* This structure represente a program that will be executed by taskmaster
+* This structure represents a program that will be executed by taskmaster
 */
 struct program_specification
 {
@@ -131,6 +132,8 @@ struct program_specification
         uint8_t global_status_configuration_reloading : 1;
         } global_status;
 
+    pthread_mutex_t mtx_client_event;
+    pthread_mutex_t mtx_pgm_state;
     struct
         {
         uint8_t started            : 1;
@@ -139,7 +142,7 @@ struct program_specification
         uint8_t restarting         : 1;
 
         uint8_t need_to_stop       : 1;
-        uint8_t stoping            : 1;
+        uint8_t stopping           : 1;
 
         uint8_t need_to_start      : 1;
         uint8_t starting           : 1;
@@ -181,10 +184,11 @@ struct program_specification
       /* how many time the process can be restarted */
       atomic_int restart_counter;
       uint8_t exit_status; /* value of exit from the current process */
-      struct timeval start_timestamp;
+      struct timeval start_timestamp; /* time when process started */
     } *thrd; /* array of thread_data. One thread per processus */
 
-    struct timeval stop_timestamp;
+    atomic_uint nb_thread_alive; /* count how many launcher thread are alive*/
+    struct timeval stop_timestamp; /* time when client asked to stop */
     char **argv; /* name of program and its arguments in the form of argv */
 
     struct program_list *node;
@@ -214,6 +218,7 @@ struct program_list
     struct program_specification *last_program_linked_list;
     uint32_t                      number_of_program;
 
+    pthread_mutex_t mtx_log;
     int32_t tm_fd_log;
 };
 
@@ -295,11 +300,19 @@ void    free_taskmaster(struct taskmaster *taskmaster);
 
 /* tm_job_control.c */
 typedef uint8_t (*callback)(struct program_specification *,
-                            struct program_list *node);
+                            struct program_list *);
 
 typedef struct client_handler {
     callback cb;
 } s_client_handler;
+
+/* used to keep in memory only thread_data struct we want to compare 'later' */
+typedef struct time_control {
+    struct program_specification *pgm;
+    struct timeval start;
+    uint32_t pid;
+    uint32_t rid;
+} s_time_control;
 
 uint8_t tm_job_control(struct program_list *taskmaster);
 
