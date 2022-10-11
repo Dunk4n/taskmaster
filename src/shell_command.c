@@ -70,14 +70,14 @@ void    display_status_of_program(struct taskmaster *taskmaster, struct program_
         print_command_output(taskmaster, buffer);
         }
 
-    if(program->program_state.starting == TRUE || program->program_state.stoping == TRUE || program->program_state.restarting == TRUE)
+    if(program->program_state.starting == TRUE || program->program_state.stopping == TRUE || program->program_state.restarting == TRUE)
         {
         if(program->program_state.starting == TRUE)
             {
             snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, "    Is starting\n");
             print_command_output(taskmaster, buffer);
             }
-        if(program->program_state.stoping == TRUE)
+        if(program->program_state.stopping == TRUE)
             {
             snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, "    Is stoping\n");
             print_command_output(taskmaster, buffer);
@@ -310,7 +310,7 @@ uint8_t shell_command_start_function(struct taskmaster *taskmaster, uint8_t **ar
                             snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, BOLD"Program ["COLOR_RESET"%s"BOLD"] is already starting"COLOR_RESET":\n\n", arguments[cnt]);
                             print_command_output(taskmaster, buffer);
                             }
-                        else if(actual_program->program_state.stoping == TRUE)
+                        else if(actual_program->program_state.stopping == TRUE)
                             {
                             snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, BOLD"Program ["COLOR_RESET"%s"BOLD"] is already stoping"COLOR_RESET":\n\n", arguments[cnt]);
                             print_command_output(taskmaster, buffer);
@@ -436,7 +436,7 @@ uint8_t shell_command_stop_function(struct taskmaster *taskmaster, uint8_t **arg
                             snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, BOLD"Program ["COLOR_RESET"%s"BOLD"] is already starting"COLOR_RESET":\n\n", arguments[cnt]);
                             print_command_output(taskmaster, buffer);
                             }
-                        else if(actual_program->program_state.stoping == TRUE)
+                        else if(actual_program->program_state.stopping == TRUE)
                             {
                             snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, BOLD"Program ["COLOR_RESET"%s"BOLD"] is already stoping"COLOR_RESET":\n\n", arguments[cnt]);
                             print_command_output(taskmaster, buffer);
@@ -557,7 +557,7 @@ uint8_t shell_command_restart_function(struct taskmaster *taskmaster, uint8_t **
                             snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, BOLD"Program ["COLOR_RESET"%s"BOLD"] is already starting"COLOR_RESET":\n\n", arguments[cnt]);
                             print_command_output(taskmaster, buffer);
                             }
-                        else if(actual_program->program_state.stoping == TRUE)
+                        else if(actual_program->program_state.stopping == TRUE)
                             {
                             snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, BOLD"Program ["COLOR_RESET"%s"BOLD"] is already stoping"COLOR_RESET":\n\n", arguments[cnt]);
                             print_command_output(taskmaster, buffer);

@@ -62,7 +62,7 @@ static uint8_t initialize_pgm_config(struct program_specification *program)
     program->program_state.need_to_restart = FALSE;
     program->program_state.restarting = FALSE;
     program->program_state.need_to_stop = FALSE;
-    program->program_state.stoping = FALSE;
+    program->program_state.stopping = FALSE;
     program->program_state.need_to_start = FALSE;
     program->program_state.starting = FALSE;
     program->program_state.need_to_be_removed = FALSE;
@@ -97,7 +97,12 @@ static uint8_t initialize_pgm_config(struct program_specification *program)
 
     program->global_status.global_status_struct_init = TRUE;
 
+    if(pthread_mutex_init(&(program->mtx_pgm_state), NULL) != 0)
+        return (EXIT_FAILURE);
+    if(pthread_mutex_init(&(program->mtx_client_event), NULL) != 0)
+        return (EXIT_FAILURE);
     program->node = NULL;
+    program->nb_thread_alive = 0;
     program->thrd = NULL;
     program->argv = NULL;
     program->log.out = UNINITIALIZED_FD;
@@ -173,7 +178,12 @@ static uint8_t reset_program_default_value_without_name(struct program_specifica
     program->exit_codes[0] = PROGRAM_DEFAULT_EXIT_CODE;
     program->exit_codes_number = 1;
 
+    if(pthread_mutex_init(&(program->mtx_pgm_state), NULL) != 0)
+        return (EXIT_FAILURE);
+    if(pthread_mutex_init(&(program->mtx_client_event), NULL) != 0)
+        return (EXIT_FAILURE);
     program->node = NULL;
+    program->nb_thread_alive = 0;
     program->thrd = NULL;
     program->argv = NULL;
     program->log.out = UNINITIALIZED_FD;
@@ -795,6 +805,10 @@ void free_program_specification(struct program_specification *program)
     if (program->log.out != UNINITIALIZED_FD) close(program->log.out);
     if (program->log.err != UNINITIALIZED_FD) close(program->log.err);
 
+    pthread_mutex_destroy(&(program->mtx_pgm_state));
+    pthread_mutex_destroy(&(program->mtx_client_event));
+
+    program->nb_thread_alive = 0;
     program->node = NULL;
     program->next = NULL;
     }
@@ -849,9 +863,9 @@ void free_program_list(struct program_list *programs)
     close(programs->tm_fd_log);
 
     free_linked_list_in_program_list(programs);
-
     if(pthread_mutex_destroy(&(programs->mutex_program_linked_list)) != 0)
         return;
+    pthread_mutex_destroy(&(programs->mtx_log));
     }
 
 /**
@@ -1060,10 +1074,13 @@ uint8_t init_program_list(struct program_list *program_list)
     if(pthread_mutex_init(&(program_list->mutex_program_linked_list), NULL) != 0)
         return (EXIT_FAILURE);
 
+    if(pthread_mutex_init(&(program_list->mtx_log), NULL) != 0)
+        return (EXIT_FAILURE);
+
     program_list->global_status.global_status_struct_init = TRUE;
 
     program_list->tm_fd_log =
-        open(TASKMASTER_LOGFILE, O_RDWR | O_TRUNC | O_CREAT, 0644);
+        open(TASKMASTER_LOGFILE, O_RDWR | O_APPEND | O_CREAT, 0664);
     if(program_list->tm_fd_log == -1)
         log_error("failed to open "TASKMASTER_LOGFILE, __FILE__, __func__,
                   __LINE__);
