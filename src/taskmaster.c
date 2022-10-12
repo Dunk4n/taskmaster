@@ -144,7 +144,9 @@ void    stop_and_wait_all_the_program(struct taskmaster *taskmaster)
             break;
             }
 
+        pthread_mutex_lock(&actual_program->mtx_pgm_state);
         actual_program->program_state.need_to_be_removed = TRUE;
+        pthread_mutex_unlock(&actual_program->mtx_pgm_state);
 
         actual_program = actual_program->next;
         }
