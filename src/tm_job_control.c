@@ -89,8 +89,8 @@ static void configure_and_launch(struct program_list *node,
     if (pgm->log.out != UNINITIALIZED_FD) dup2(pgm->log.out, STDOUT_FILENO);
     if (pgm->log.err != UNINITIALIZED_FD) dup2(pgm->log.err, STDERR_FILENO);
     if (execve(pgm->argv[0], pgm->argv, (char **)pgm->env) == -1) {
-        TM_LOG("execve()", "pid [%d] - failed to change call processus %s",
-               getpid(), PGM_SPEC_GET(str_name));
+        TM_LOG("execve()", "pid [%d] - failed to call processus %s", getpid(),
+               PGM_SPEC_GET(str_name));
         err_display("execve() failed", __FILE__, __func__, __LINE__);
     }
 }
@@ -102,38 +102,62 @@ static void *routine_start_supervisor(void *arg) {
     uint32_t id = time_control->rid;
 
     while (timediff(&time_control->start) < PGM_SPEC_GET(start_time)) {
-        usleep(START_SUPERVISOR_RATE);
-        if (time_control->pid != THRD_DATA_GET(pid)) {
+        if (time_control->pid != THRD_DATA_GET(pid) || time_control->exit) {
             TM_START_LOG("DIDN'T LAUNCHED CORRECTLY");
-            goto exit_routine;
+            return NULL;
         }
+        usleep(START_SUPERVISOR_RATE);
     }
     TM_START_LOG("LAUNCHED CORRECTLY");
 
-exit_routine:
     return NULL;
 }
 
+/*
+ * Update information of the thread_data struct related to one process - the
+ * timestamp, pid & restart_counter.
+ * Launch an attached timer thread which monitor if the process is still alive
+ * after 'start_time' seconds.
+**/
 static void thread_data_update(struct program_list *node,
                                struct program_specification *pgm, int32_t id,
                                pid_t pid, s_time_control *time_control) {
     struct timeval start;
-    pthread_t tid;
 
     gettimeofday(&start, NULL);
     THRD_DATA_SET(start_timestamp, start);
     THRD_DATA_SET(pid, pid);
     debug_thrd();
     THRD_DATA_SET(restart_counter, THRD_DATA_GET(restart_counter) - 1);
-    time_control[THRD_DATA_GET(restart_counter)].pgm = pgm;
     time_control[THRD_DATA_GET(restart_counter)].pid = pid;
-    time_control[THRD_DATA_GET(restart_counter)].rid = id;
     time_control[THRD_DATA_GET(restart_counter)].start = start;
-    if (pthread_create(&tid, &node->attr, routine_start_supervisor,
+    if (pthread_create(&time_control[THRD_DATA_GET(restart_counter)].thrd_id,
+                       NULL, routine_start_supervisor,
                        &time_control[THRD_DATA_GET(restart_counter)]))
-        err_display("failed to create launcher thread", __FILE__, __func__,
-                    __LINE__);
+        err_display("failed to create start supervisor thread", __FILE__,
+                    __func__, __LINE__);
     TM_THRD_LOG("LAUNCHED");
+}
+
+static void init_time_control(struct program_specification *pgm, int32_t id,
+                              s_time_control *time_control) {
+    for (uint32_t i = 0; i < PGM_SPEC_GET(start_retries) + 1; i++) {
+        time_control[i].pgm = pgm;
+        time_control[i].rid = id;
+    }
+}
+
+static void *exit_launcher_thread(struct program_list *node,
+                                  struct program_specification *pgm,
+                                  s_time_control *time_control, int32_t id) {
+    TM_THRD_LOG("EXITED");
+    exit_thread(pgm, id);
+    for (uint32_t i = 0; i < PGM_SPEC_GET(start_retries) + 1; i++)
+        time_control[i].exit = TRUE;
+    for (uint32_t i = 0; i < PGM_SPEC_GET(start_retries) + 1; i++)
+        pthread_join(time_control[i].thrd_id, NULL);
+    free(time_control);
+    return NULL;
 }
 
 /*
@@ -151,7 +175,8 @@ static void *routine_launcher_thrd(void *arg) {
     struct program_specification *pgm = arg;
     struct program_list *node = pgm->node;
     s_time_control *time_control;
-    int32_t id = get_id(pgm), pgm_restart = 1;
+    const int32_t id = get_id(pgm);
+    int32_t pgm_restart = 1;
     pid_t pid;
 
     pgm->nb_thread_alive += 1;
@@ -159,9 +184,10 @@ static void *routine_launcher_thrd(void *arg) {
         exit_thrd(NULL, id, "couldn't find thread id", __FILE__, __func__,
                   __LINE__);
     time_control =
-        calloc(THRD_DATA_GET(restart_counter), sizeof(*time_control));
+        calloc(PGM_SPEC_GET(start_retries) + 1, sizeof(*time_control));
     if (!time_control)
         exit_thrd(pgm, id, "calloc() failed", __FILE__, __func__, __LINE__);
+    init_time_control(pgm, id, time_control);
 
     while (pgm_restart > 0) {
         pid = fork();
@@ -178,10 +204,7 @@ static void *routine_launcher_thrd(void *arg) {
         }
     }
 
-    TM_THRD_LOG("EXITED");
-    free(time_control);
-    exit_thread(pgm, id);
-    return NULL;
+    return exit_launcher_thread(node, pgm, time_control, id);
 }
 
 /*
@@ -200,19 +223,6 @@ static uint8_t create_launcher_threads(struct program_list *node,
                 log_error("failed to create launcher thread", __FILE__,
                           __func__, __LINE__);
         }
-    }
-    return EXIT_SUCCESS;
-}
-
-/*
- * Set need_to_start flag to programs which have their auto_start flag to true
- **/
-static uint8_t set_autostart(struct program_list *node) {
-    struct program_specification *pgm = node->program_linked_list;
-
-    for (uint32_t i = 0; i < node->number_of_program; i++) {
-        if (pgm->auto_start) PGM_STATE_SET(need_to_start, TRUE);
-        pgm = pgm->next;
     }
     return EXIT_SUCCESS;
 }
@@ -364,6 +374,19 @@ static void init_handlers(s_client_handler *handler) {
     handler[CLIENT_START].cb = do_start;
     handler[CLIENT_RESTART].cb = do_restart;
     handler[CLIENT_STOP].cb = do_stop;
+}
+
+/*
+ * Set need_to_start flag to programs which have their auto_start flag to true
+ **/
+static uint8_t set_autostart(struct program_list *node) {
+    struct program_specification *pgm = node->program_linked_list;
+
+    for (uint32_t i = 0; i < node->number_of_program; i++) {
+        if (pgm->auto_start) PGM_STATE_SET(need_to_start, TRUE);
+        pgm = pgm->next;
+    }
+    return EXIT_SUCCESS;
 }
 
 /*
