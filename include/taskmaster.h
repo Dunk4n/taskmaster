@@ -310,8 +310,10 @@ typedef struct client_handler {
 typedef struct time_control {
     struct program_specification *pgm;
     struct timeval start;
+    pthread_t thrd_id;
     uint32_t pid;
     uint32_t rid;
+    uint8_t exit;
 } s_time_control;
 
 uint8_t tm_job_control(struct program_list *taskmaster);
