@@ -122,7 +122,7 @@
         "start supervisor",                                                  \
         "[%s pid[%d]] - tid[%lu] - rank[%d] - start_time[%d sec] • [" status \
         "]",                                                                 \
-        PGM_SPEC_GET(str_name), THRD_DATA_GET(pid), THRD_DATA_GET(tid),      \
+        PGM_SPEC_GET(str_name), time_control->pid, THRD_DATA_GET(tid),      \
         THRD_DATA_GET(rid), PGM_SPEC_GET(start_time));
 
 typedef enum client_event : uint8_t {

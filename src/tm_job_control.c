@@ -93,6 +93,11 @@ static void configure_and_launch(struct program_list *node,
                PGM_SPEC_GET(str_name));
         err_display("execve() failed", __FILE__, __func__, __LINE__);
     }
+    //BUG. Sur un cas ou on fait retry 8 fois un pgm avec 1 proc, qui n'existe
+    //pas et qui donc fail execve(), il y a parfois un bug: parfois execve ne
+    //fail pas et le programme en question qui est lancé - et visible avec
+    //la commande 'ps -aux | grep taskmaster' est... taskmaster avec le même
+    //fichier de config en arguments.
 }
 
 static void *routine_start_supervisor(void *arg) {
@@ -127,8 +132,9 @@ static void thread_data_update(struct program_list *node,
     gettimeofday(&start, NULL);
     THRD_DATA_SET(start_timestamp, start);
     THRD_DATA_SET(pid, pid);
-    debug_thrd();
     THRD_DATA_SET(restart_counter, THRD_DATA_GET(restart_counter) - 1);
+    TM_THRD_LOG("LAUNCHED");
+    debug_thrd();
     time_control[THRD_DATA_GET(restart_counter)].pid = pid;
     time_control[THRD_DATA_GET(restart_counter)].start = start;
     if (pthread_create(&time_control[THRD_DATA_GET(restart_counter)].thrd_id,
@@ -136,7 +142,6 @@ static void thread_data_update(struct program_list *node,
                        &time_control[THRD_DATA_GET(restart_counter)]))
         err_display("failed to create start supervisor thread", __FILE__,
                     __func__, __LINE__);
-    TM_THRD_LOG("LAUNCHED");
 }
 
 static void init_time_control(struct program_specification *pgm, int32_t id,
