@@ -67,7 +67,6 @@ static int32_t child_control(const struct program_specification *pgm,
             log_error("waitpid() failed", __FILE__, __func__, __LINE__);
         if (WIFEXITED(wstatus)) {
             child_ret = WEXITSTATUS(wstatus);
-            THRD_DATA_SET(exit_status, child_ret);
             for (uint16_t i = 0;
                  !expected && i < PGM_SPEC_GET(exit_codes_number); i++)
                 expected = child_ret == PGM_SPEC_GET(exit_codes)[i];
@@ -245,7 +244,6 @@ static uint8_t create_launcher_threads(struct program_list *node,
     for (uint32_t id = 0; id < pgm->number_of_process; id++) {
         THRD_DATA_SET(restart_counter, PGM_SPEC_GET(start_retries) + 1);
         if (THRD_DATA_GET(tid) == 0 && THRD_DATA_GET(pid) == 0) {
-            THRD_DATA_SET(exit_status, 0);
             if (pthread_create(&pgm->thrd[id].tid, &node->attr,
                                routine_launcher_thrd, pgm))
                 log_error("failed to create launcher thread", __FILE__,
@@ -301,21 +299,28 @@ static uint8_t do_nothing(struct program_specification *pgm,
  **/
 static uint8_t do_start(struct program_specification *pgm,
                         struct program_list *node) {
+    struct stat statbuf;
+
     pthread_mutex_lock(&pgm->mtx_client_event);
+
     if (PGM_STATE_GET(starting) || PGM_STATE_GET(stopping)) {
         pthread_mutex_unlock(&pgm->mtx_client_event);
         return EXIT_FAILURE;
     }
-
     PGM_STATE_SET(need_to_start, FALSE);
     PGM_STATE_SET(starting, TRUE);
     TM_LOG("start", "%s", PGM_SPEC_GET(str_name));
+
     pthread_mutex_unlock(&pgm->mtx_client_event);
-    create_launcher_threads(node, pgm);
 
-    PGM_STATE_SET(started, TRUE);
+    if (stat(PGM_SPEC_GET(argv)[0], &statbuf) == -1)
+        TM_LOG("start error", "%s can't be executed", PGM_SPEC_GET(argv)[0]);
+    else {
+        create_launcher_threads(node, pgm);
+        PGM_STATE_SET(started, TRUE);
+    }
+
     PGM_STATE_SET(starting, FALSE);
-
     return EXIT_SUCCESS;
 }
 

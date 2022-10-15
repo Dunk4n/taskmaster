@@ -183,7 +183,6 @@ struct program_specification
       uint32_t pid;  /* pid of current process */
       /* how many time the process can be restarted */
       atomic_int restart_counter;
-      uint8_t exit_status; /* value of exit from the current process */
       struct timeval start_timestamp; /* time when process started */
     } *thrd; /* array of thread_data. One thread per processus */
 
