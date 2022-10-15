@@ -40,7 +40,7 @@ prod: CPPFLAGS += -DPRODUCTION
 prod: $(YAML) $(NAME)
 
 debug: CPPFLAGS += -DDEVELOPEMENT
-debug: CFLAGS := -Wall -Wextra -g -fcommon
+debug: CFLAGS := -Wall -Wextra -g -O0 -fcommon
 debug: $(YAML) $(NAME)
 
 san: CPPFLAGS += -DDEVELOPEMENT

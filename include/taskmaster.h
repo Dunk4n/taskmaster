@@ -197,29 +197,28 @@ struct program_specification
 };
 
 /**
-* This structure represente the list of all the program that will be executed by taskmaster
+* This structure holds the list of all the programs that will be executed
+* by taskmaster
 */
-struct program_list
-{
-    struct
-        {
-        // FIRST_BIT     Structure is init          1 = Y / 0 = N
-        uint8_t global_status_struct_init             : 1;
+struct program_list {
+    /* program_list node status. 1 = Y / 0 = N */
+    struct {
+        uint8_t global_status_struct_init  : 1; /* Structure is init */
+        uint8_t global_status_conf_loaded  : 1; /* Configuration is loaded */
+        uint8_t exit  : 1; /* exit command to master thread */
+    } global_status;
 
-        // SECOND_BIT     Configuration is loaded   1 = Y / 0 = N
-        uint8_t global_status_conf_loaded             : 1;
-        } global_status;
-
-    pthread_attr_t attr;
+    /* id of main thread - it listen to client events */
     pthread_t master_thread;
+    pthread_attr_t attr; /* pthread attribute initialized to detached */
 
     pthread_mutex_t               mutex_program_linked_list;
-    struct program_specification *program_linked_list;
-    struct program_specification *last_program_linked_list;
+    struct program_specification *program_linked_list; /* head of pgm list */
+    struct program_specification *last_program_linked_list; /* tail of pgm list */
     uint32_t                      number_of_program;
 
-    pthread_mutex_t mtx_log;
-    int32_t tm_fd_log;
+    pthread_mutex_t mtx_log; /* mutex to lock-free logging from all threads */
+    int32_t tm_fd_log; /* taskmaster FD log */
 };
 
 struct taskmaster

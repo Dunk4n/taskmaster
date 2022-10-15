@@ -9,6 +9,7 @@
 #define CLIENT_LISTENING_RATE (200)
 #define START_SUPERVISOR_RATE (400)
 #define STOP_SUPERVISOR_RATE (400)
+#define EXIT_MASTER_RATE (200)
 
 #ifdef DEVELOPEMENT
 #define debug_thrd()                                                         \
@@ -80,6 +81,7 @@
  * name is the name of the struct variable name
  **/
 #define PGM_STATE_GET(name) pgm->program_state.name
+/* #define PGM_STATE_GET(name) pgm_state_getter(pgm, name) */
 
 /*
 ** LOG MACROS

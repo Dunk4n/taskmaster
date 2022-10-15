@@ -2,6 +2,29 @@
 
 #include "taskmaster.h"
 
+/* getters */
+
+/* enum pgm_states { */
+/*     started = 1 << 0, */
+/*     need_to_restart = 1 << 1, */
+/*     restarting = 1 << 2, */
+/*     need_to_stop = 1 << 3, */
+/*     stopping = 1 << 4, */
+/*     need_to_start = 1 << 5, */
+/*     starting = 1 << 6, */
+/*     need_to_be_removed = 1 << 7 */
+/* }; */
+
+/* bool pgm_state_getter(struct program_specification *pgm, */
+/*                       enum pgm_states state) { */
+/*     bool b; */
+
+/*     pthread_mutex_lock(&pgm->mtx_pgm_state); */
+/*     b = *(uint8_t *)(&pgm->program_state) & state; */
+/*     pthread_mutex_unlock(&pgm->mtx_pgm_state); */
+/*     return b; */
+/* } */
+
 /* time diff in s */
 static uint32_t timediff(struct timeval *time1) {
     struct timeval time2;
@@ -93,11 +116,11 @@ static void configure_and_launch(struct program_list *node,
                PGM_SPEC_GET(str_name));
         err_display("execve() failed", __FILE__, __func__, __LINE__);
     }
-    //BUG. Sur un cas ou on fait retry 8 fois un pgm avec 1 proc, qui n'existe
-    //pas et qui donc fail execve(), il y a parfois un bug: parfois execve ne
-    //fail pas et le programme en question qui est lancé - et visible avec
-    //la commande 'ps -aux | grep taskmaster' est... taskmaster avec le même
-    //fichier de config en arguments.
+    // BUG. Sur un cas ou on fait retry 8 fois un pgm avec 1 proc, qui n'existe
+    // pas et qui donc fail execve(), il y a parfois un bug: parfois execve ne
+    // fail pas et le programme en question qui est lancé - et visible avec
+    // la commande 'ps -aux | grep taskmaster' est... taskmaster avec le même
+    // fichier de config en arguments.
 }
 
 static void *routine_start_supervisor(void *arg) {
@@ -123,7 +146,7 @@ static void *routine_start_supervisor(void *arg) {
  * timestamp, pid & restart_counter.
  * Launch an attached timer thread which monitor if the process is still alive
  * after 'start_time' seconds.
-**/
+ **/
 static void thread_data_update(struct program_list *node,
                                struct program_specification *pgm, int32_t id,
                                pid_t pid, s_time_control *time_control) {
@@ -394,6 +417,75 @@ static uint8_t set_autostart(struct program_list *node) {
     return EXIT_SUCCESS;
 }
 
+/* static void destroy_pgm(struct program_specification *pgm) { */
+/*     if (!pgm) return; */
+/*     pthread_mutex_destroy(&pgm->mtx_client_event); */
+/*     pthread_mutex_destroy(&pgm->mtx_pgm_state); */
+/*     if (pgm->str_name) { */
+/*         free(pgm->str_name); */
+/*         pgm->str_name = NULL; */
+/*     } */
+/*     if (pgm->str_start_command) { */
+/*         free(pgm->str_start_command); */
+/*         pgm->str_start_command = NULL; */
+/*     } */
+/*     if (pgm->exit_codes) { */
+/*         free(pgm->exit_codes); */
+/*         pgm->exit_codes = NULL; */
+/*     } */
+/*     if (pgm->str_stdout) { */
+/*         free(pgm->str_stdout); */
+/*         pgm->str_stdout = NULL; */
+/*     } */
+/*     if (pgm->str_stderr) { */
+/*         free(pgm->str_stderr); */
+/*         pgm->str_stderr = NULL; */
+/*     } */
+/*     if (pgm->working_dir) { */
+/*         free(pgm->working_dir); */
+/*         pgm->working_dir = NULL; */
+/*     } */
+/*     if (pgm->thrd) { */
+/*         free(pgm->thrd); */
+/*         pgm->thrd = NULL; */
+/*     } */
+/*     if (pgm->env) { */
+/*         for (uint32_t i = 0; pgm->env[i]; i++) { */
+/*             free(pgm->env[i]); */
+/*             pgm->env[i] = NULL; */
+/*         } */
+/*         free(pgm->env); */
+/*         pgm->env = NULL; */
+/*     } */
+/*     if (pgm->argv) { */
+/*         for (uint32_t i = 0; pgm->argv[i]; i++) { */
+/*             free(pgm->argv[i]); */
+/*             pgm->argv[i] = NULL; */
+/*         } */
+/*         free(pgm->argv); */
+/*         pgm->argv = NULL; */
+/*     } */
+/* } */
+
+static void exit_job_control(struct program_list *node) {
+    struct program_specification *pgm, *tmp;
+
+    TM_LOG("exit", "...", NULL);
+    for (pgm = node->program_linked_list; pgm; pgm = pgm->next)
+        do_stop(pgm, node);
+    for (int i = 1; i;) {
+        i = 0;
+        for (pgm = node->program_linked_list; pgm; pgm = pgm->next)
+            if (pgm->program_state.stopping) i++;
+        usleep(EXIT_MASTER_RATE);
+    }
+    for (pgm = node->program_linked_list; pgm;) {
+        tmp = pgm->next;
+        /* destroy_pgm(pgm); */
+        pgm = tmp;
+    }
+}
+
 /*
  * The master thread listen the clients events - start, stop, restart - and
  * handle them.
@@ -410,7 +502,7 @@ static void *routine_master_thrd(void *arg) {
 
     init_handlers(handler);
     set_autostart(node);
-    while (1) {
+    while (node->global_status.exit == FALSE) {
         pgm = node->program_linked_list;
         while (pgm) {
             client_event = ((PGM_STATE_GET(need_to_restart) * CLIENT_RESTART) +
@@ -421,7 +513,8 @@ static void *routine_master_thrd(void *arg) {
         }
         usleep(CLIENT_LISTENING_RATE);
     }
-    /* TODO: free linked list*/
+    exit_job_control(node);
+    TM_LOG("taskmaster", "program exit", NULL);
     return NULL;
 }
 

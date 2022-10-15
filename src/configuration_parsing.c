@@ -1078,6 +1078,7 @@ uint8_t init_program_list(struct program_list *program_list)
         return (EXIT_FAILURE);
 
     program_list->global_status.global_status_struct_init = TRUE;
+    program_list->global_status.exit = FALSE;
 
     program_list->tm_fd_log =
         open(TASKMASTER_LOGFILE, O_RDWR | O_APPEND | O_CREAT, 0664);

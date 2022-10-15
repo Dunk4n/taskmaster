@@ -154,6 +154,7 @@ void    stop_and_wait_all_the_program(struct taskmaster *taskmaster)
     //TODO wait for all the program to stop
     tmp_number_of_program = taskmaster->programs.number_of_program;
     number_of_seconds     = 0;
+    taskmaster->programs.global_status.exit = TRUE;
     while(taskmaster->programs.number_of_program != 0 && number_of_seconds < NUMBER_OF_SECONDS_TO_WAIT_FOR_EXIT)
         {
         sleep(1);
