@@ -1,0 +1,21 @@
+programs:
+  daemon_ALPHA:
+    cmd: "/home/user42/42/taskmaster/test/daemons/daemon_ALPHA arg1 arg2"
+    numprocs: 1
+    umask: 777
+    workingdir: /tmp
+    autostart: true
+    autorestart: unexpected
+    exitcodes:
+      - 0
+      - 2
+    startretries: 3
+    starttime: 3
+    stopsignal: TERM
+    stoptime: 3
+    stdout: /tmp/alpha.stdout
+    stderr: /tmp/alpha.stderr
+    env:
+      STARTED_BY: taskmaster
+      ANSWER: 42
+    log: true

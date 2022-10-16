@@ -167,8 +167,8 @@ uint8_t reload_config_file(uint8_t *file_name, struct program_list *program_list
 
                     if(is_important_value_changed(actual_program_original_list, actual_program) == TRUE)
                         {
-                        pthread_mutex_lock(&actual_program_original_list->mtx_pgm_state);
                         actual_program_original_list->global_status.global_status_configuration_reloading = TRUE;
+                        pthread_mutex_lock(&actual_program_original_list->mtx_pgm_state);
                         actual_program_original_list->program_state.need_to_restart = TRUE;
                         pthread_mutex_unlock(&actual_program_original_list->mtx_pgm_state);
                         actual_program_original_list->restart_tmp_program = actual_program;

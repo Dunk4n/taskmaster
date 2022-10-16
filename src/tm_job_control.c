@@ -217,6 +217,10 @@ static void *routine_launcher_thrd(void *arg) {
     init_time_control(pgm, id, time_control);
 
     while (pgm_restart > 0) {
+        /* the more it restarts the more it sleeps (supervisord behavior) */
+        sleep((PGM_SPEC_GET(start_retries) + 1) -
+              THRD_DATA_GET(restart_counter));
+
         pid = fork();
         if (pid == -1)
             exit_thrd(pgm, id, "fork() failed", __FILE__, __func__, __LINE__);
