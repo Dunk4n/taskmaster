@@ -235,12 +235,16 @@ struct taskmaster
     /* node with head, tail & data of program list */
     struct program_list programs;
 
+    uint8_t *config_file_path;
+
     t_command_line command_line;
 
     int                socket;
     int                client_socket;
     struct sockaddr_in addr;
 };
+
+volatile uint8_t g_config_must_reload;
 
 /**
 * This enumeration represente all the posible shell command
@@ -255,6 +259,8 @@ enum shell_command
     SHELL_COMMAND_EXIT,
     NUMBER_OF_SHELL_COMMAND
 };
+
+volatile const uint8_t *g_shell_command_name[NUMBER_OF_SHELL_COMMAND];
 
 /* configuration_parsing_program_field_load_function.c */
 uint8_t program_field_cmd_load_function(yaml_parser_t *parser, struct program_specification *program, yaml_event_t *event);

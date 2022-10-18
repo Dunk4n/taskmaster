@@ -28,10 +28,19 @@ void display_help(void)
     printf("    ./taskmaster config.yaml -d     // for daemon\n");
     }
 
+void sighup_handle(int sig)
+    {
+    (void)sig;
+
+    g_config_must_reload = TRUE;
+    }
+
 int main(int argc, char **argv) {
     struct taskmaster taskmaster;
 
     taskmaster.global_status.global_status_struct_init = FALSE;
+
+    g_config_must_reload = FALSE;
 
     if (argc < 2 || argc > 3) {
         display_help();
@@ -59,6 +68,13 @@ int main(int argc, char **argv) {
 
     if(taskmaster.global_status.global_status_start_as_client == FALSE)
         {
+        taskmaster.config_file_path = (uint8_t *) strdup(argv[1]);
+        if(taskmaster.config_file_path == NULL)
+            {
+            free_taskmaster(&taskmaster);
+            log_error("The copying of the configuration file failed", __FILE__, __func__, __LINE__);
+            return (EXIT_FAILURE);
+            }
         if (parse_config_file((uint8_t *)argv[1], &(taskmaster.programs)) != EXIT_SUCCESS)
             {
             free_taskmaster(&taskmaster);
@@ -67,6 +83,12 @@ int main(int argc, char **argv) {
             }
 
         if (tm_job_control(&taskmaster.programs)) goto exit_error;
+        }
+
+    if(signal(SIGHUP, sighup_handle) == SIG_ERR)
+        {
+        log_error("The function signal failed", __FILE__, __func__, __LINE__);
+        return (EXIT_FAILURE);
         }
 
     if(taskmaster.global_status.global_status_start_as_daemon == TRUE)
