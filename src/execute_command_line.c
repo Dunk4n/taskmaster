@@ -4,7 +4,7 @@
 /**
 * This array correspond to all the possible shell command name
 */
-const uint8_t *g_shell_command_name[NUMBER_OF_SHELL_COMMAND] =
+volatile const uint8_t *g_shell_command_name[NUMBER_OF_SHELL_COMMAND] =
     {
     (uint8_t *) "status",
     (uint8_t *) "start",

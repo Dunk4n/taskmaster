@@ -647,6 +647,14 @@ uint8_t shell_command_reload_conf_function(struct taskmaster *taskmaster, uint8_
 
     //TODO add in file log reloading config file
 
+    free(taskmaster->config_file_path);
+    taskmaster->config_file_path = NULL;
+    taskmaster->config_file_path = (uint8_t *) strdup((char *) arguments[1]);
+    if(taskmaster->config_file_path == NULL)
+        {
+        log_error("The copying of the configuration file failed", __FILE__, __func__, __LINE__);
+        return (EXIT_FAILURE);
+        }
     if(reload_config_file(arguments[1], &(taskmaster->programs)) != EXIT_SUCCESS)
         {
         #ifdef DEVELOPEMENT
