@@ -18,7 +18,6 @@ programs:
     env:
       STARTED_BY: taskmaster
       ANSWER: 42
-    log: true
   vogsphere:
     cmd: "/usr/local/bin/vogsphere-worker --no-prefork"
     numprocs: 2

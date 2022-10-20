@@ -1,5 +1,7 @@
 #include <unistd.h>
 #include <stdio.h>
+#include <string.h>
+#include <errno.h>
 #include "minishell.h"
 
 static void	display_all_command_line(t_cursor *cur, char *line, char move)

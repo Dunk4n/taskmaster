@@ -1,6 +1,75 @@
 #include "taskmaster.h"
 #include "minishell.h"
 
+uint8_t send_reload_config_file_to_daemon(struct taskmaster *taskmaster)
+    {
+    if(taskmaster == NULL)
+        return (EXIT_FAILURE);
+    if(taskmaster->global_status.global_status_struct_init == FALSE)
+        return (EXIT_FAILURE);
+    if(taskmaster->command_line.global_status.global_status_struct_init == FALSE)
+        return (EXIT_FAILURE);
+    if(taskmaster->config_file_path == NULL)
+        return (EXIT_FAILURE);
+
+    uint32_t  cnt;
+    uint32_t  length;
+    uint8_t  *str_reload_config_command;
+
+    cnt = 0;
+    length = 0;
+    str_reload_config_command = NULL;
+
+    cnt = 0;
+    while(taskmaster->config_file_path[cnt] != NIL)
+        cnt++;
+    length = cnt;
+
+    cnt = 0;
+    while(g_shell_command_name[SHELL_COMMAND_RELOAD_CONF][cnt] != NIL)
+        cnt++;
+    length += cnt;
+    length++;
+
+    str_reload_config_command = malloc(sizeof(uint8_t) * (length + 1));
+    if(str_reload_config_command == NULL)
+        return (EXIT_FAILURE);
+
+    length = 0;
+    cnt = 0;
+    while(g_shell_command_name[SHELL_COMMAND_RELOAD_CONF][cnt] != NIL)
+        {
+        str_reload_config_command[length] = g_shell_command_name[SHELL_COMMAND_RELOAD_CONF][cnt];
+
+        cnt++;
+        length++;
+        }
+
+    str_reload_config_command[length] = ' ';
+    length++;
+
+    while(taskmaster->config_file_path[cnt] != NIL)
+        {
+        str_reload_config_command[length] = taskmaster->config_file_path[cnt];
+
+        cnt++;
+        length++;
+        }
+    str_reload_config_command[length] = NIL;
+
+    if(send_command_line_to_daemon(taskmaster, (char *) str_reload_config_command) != EXIT_SUCCESS)
+        {
+        free(str_reload_config_command);
+        str_reload_config_command = NULL;
+        return (EXIT_FAILURE);
+        }
+
+    free(str_reload_config_command);
+    str_reload_config_command = NULL;
+
+    return (EXIT_SUCCESS);
+    }
+
 uint8_t taskmaster_shell(struct taskmaster *taskmaster)
     {
     if(taskmaster == NULL)
@@ -35,6 +104,35 @@ uint8_t taskmaster_shell(struct taskmaster *taskmaster)
             return (EXIT_FAILURE);
             }
 
+        if(g_config_must_reload == TRUE)
+            {
+            if(taskmaster->global_status.global_status_start_as_client == TRUE)
+                {
+                if(send_reload_config_file_to_daemon(taskmaster) != EXIT_SUCCESS)
+                    return (EXIT_FAILURE);
+                }
+            else
+                {
+                if(reload_config_file(taskmaster->config_file_path, &(taskmaster->programs)) != EXIT_SUCCESS)
+                    {
+                    #ifdef DEVELOPEMENT
+                    fprintf(stderr, ""BRED"ERROR"CRESET": in file "BWHT"%s"CRESET" in function "BWHT"%s"CRESET" at line "BWHT"%d"CRESET"\n    The reload of the configuration file failed\n", __FILE__, __func__, __LINE__);
+                    #endif
+
+                    #ifdef DEMO
+                    fprintf(stderr, ""BRED"ERROR"CRESET": in file "BWHT"%s"CRESET" at line "BWHT"%s"CRESET"\n", __FILE__, __LINE__);
+                    #endif
+
+                    #ifdef PRODUCTION
+                    fprintf(stderr, ""BRED"ERROR"CRESET"\n");
+                    #endif
+
+                    return (EXIT_FAILURE);
+                    }
+                }
+
+            g_config_must_reload = FALSE;
+            }
         if(taskmaster->global_status.global_status_start_as_client == TRUE)
             {
             if(send_command_line_to_daemon(taskmaster, line) != EXIT_SUCCESS)
@@ -74,6 +172,8 @@ uint8_t init_taskmaster(struct taskmaster *taskmaster)
 
     taskmaster->socket = -1;
     taskmaster->client_socket = -1;
+
+    taskmaster->config_file_path = NULL;
 
     taskmaster->command_line.global_status.global_status_struct_init = FALSE;
     if(taskmaster->global_status.global_status_start_as_daemon == FALSE)
@@ -135,6 +235,9 @@ void    stop_and_wait_all_the_program(struct taskmaster *taskmaster)
     number_of_seconds     = 0;
     tmp_number_of_program = 0;
 
+    if(pthread_mutex_lock(&(taskmaster->programs.mutex_program_linked_list)) != 0)
+        return;
+
     actual_program = taskmaster->programs.program_linked_list;
     while(actual_program != NULL)
         {
@@ -150,6 +253,9 @@ void    stop_and_wait_all_the_program(struct taskmaster *taskmaster)
 
         actual_program = actual_program->next;
         }
+
+    if(pthread_mutex_unlock(&(taskmaster->programs.mutex_program_linked_list)) != 0)
+        return;
 
     //TODO wait for all the program to stop
     tmp_number_of_program = taskmaster->programs.number_of_program;
@@ -173,6 +279,8 @@ void free_taskmaster(struct taskmaster *taskmaster)
         return;
     if(taskmaster->global_status.global_status_struct_init == FALSE)
         return;
+
+    free(taskmaster->config_file_path);
 
     //TODO set all the program to remove
     //TODO wait for all the program to stop
