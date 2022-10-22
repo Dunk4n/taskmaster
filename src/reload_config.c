@@ -160,17 +160,11 @@ uint8_t reload_config_file(uint8_t *file_name, struct program_list *program_list
                         actual_program_original_list->restart_tmp_program = NULL;
 
                         actual_program_original_list->global_status.global_status_configuration_reloading = FALSE;
-                        pthread_mutex_lock(&actual_program_original_list->mtx_pgm_state);
-                        actual_program_original_list->program_state.need_to_restart = FALSE;
-                        pthread_mutex_unlock(&actual_program_original_list->mtx_pgm_state);
                         }
 
                     if(is_important_value_changed(actual_program_original_list, actual_program) == TRUE)
                         {
                         actual_program_original_list->global_status.global_status_configuration_reloading = TRUE;
-                        pthread_mutex_lock(&actual_program_original_list->mtx_pgm_state);
-                        actual_program_original_list->program_state.need_to_restart = TRUE;
-                        pthread_mutex_unlock(&actual_program_original_list->mtx_pgm_state);
                         actual_program_original_list->restart_tmp_program = actual_program;
 
                         actual_program = actual_program->next;
@@ -184,6 +178,7 @@ uint8_t reload_config_file(uint8_t *file_name, struct program_list *program_list
                         }
                     else
                         {
+                        //TODO add lock for changing value in program
                         actual_program_original_list->auto_start = actual_program->auto_start;
                         actual_program_original_list->e_auto_restart = actual_program->e_auto_restart;
                         actual_program_original_list->start_time = actual_program->start_time;
