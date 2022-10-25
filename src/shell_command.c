@@ -23,11 +23,32 @@ void    print_command_output(struct taskmaster *taskmaster, uint8_t *buffer)
     return;
     }
 
+static void display_help(struct taskmaster *taskmaster)
+    {
+    if(taskmaster == NULL)
+        return;
+    if(taskmaster->global_status.global_status_struct_init == FALSE)
+        return;
+
+    uint8_t buffer[OUTPUT_BUFFER_SIZE];
+
+    buffer[0] = NIL;
+
+    snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, "\nCommand:\n    help                         display this help\n    status      [PROGRAM_NAME]   display status of all program or of specific program\n    start       PROGRAM_NAME     start program\n    stop        PROGRAM_NAME     stop program\n    restart     PROGRAM_NAME     restart program\n    reload_conf CONFIG_PATH      reload the conf passed in argument\n    exit                         exit the program\n");
+    print_command_output(taskmaster, buffer);
+    }
+
 /**
 * WARNING program_linked_list must be lock with mutex_program_linked_list before entering this function
 */
 void    display_status_of_program(struct taskmaster *taskmaster, struct program_specification *program)
     {
+    if(taskmaster == NULL)
+        return;
+    if(taskmaster->global_status.global_status_struct_init == FALSE)
+        return;
+    if(taskmaster->programs.global_status.global_status_struct_init == FALSE)
+        return;
     if(program == NULL)
         return;
     if(program->global_status.global_status_struct_init == FALSE)
@@ -262,6 +283,7 @@ uint8_t shell_command_start_function(struct taskmaster *taskmaster, uint8_t **ar
 
         snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, "Missing program name argument\n");
         print_command_output(taskmaster, buffer);
+        display_help(taskmaster);
         return (EXIT_FAILURE);
         }
 
@@ -388,6 +410,7 @@ uint8_t shell_command_stop_function(struct taskmaster *taskmaster, uint8_t **arg
         //TODO echo command help
         snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, "Missing program name argument\n");
         print_command_output(taskmaster, buffer);
+        display_help(taskmaster);
         return (EXIT_FAILURE);
         }
 
@@ -514,6 +537,7 @@ uint8_t shell_command_restart_function(struct taskmaster *taskmaster, uint8_t **
         //TODO echo command help
         snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, "Missing program name argument\n");
         print_command_output(taskmaster, buffer);
+        display_help(taskmaster);
         return (EXIT_FAILURE);
         }
 
@@ -630,6 +654,7 @@ uint8_t shell_command_reload_conf_function(struct taskmaster *taskmaster, uint8_
         //TODO echo command help
         snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, "Missing configuration file argument\n");
         print_command_output(taskmaster, buffer);
+        display_help(taskmaster);
         return (EXIT_FAILURE);
         }
 
@@ -639,6 +664,7 @@ uint8_t shell_command_reload_conf_function(struct taskmaster *taskmaster, uint8_
         //TODO echo command help
         snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, "Too many argument\n");
         print_command_output(taskmaster, buffer);
+        display_help(taskmaster);
         return (EXIT_FAILURE);
         }
 
@@ -696,6 +722,7 @@ uint8_t shell_command_exit_function(struct taskmaster *taskmaster, uint8_t **arg
         //TODO echo command help
         snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, "Too many argument\n");
         print_command_output(taskmaster, buffer);
+        display_help(taskmaster);
         return (EXIT_FAILURE);
         }
 
@@ -708,6 +735,25 @@ uint8_t shell_command_exit_function(struct taskmaster *taskmaster, uint8_t **arg
         if(send_text(taskmaster, EXIT_CLIENT_MARKER) != EXIT_SUCCESS)
             return (EXIT_FAILURE);
         }
+
+    return (EXIT_SUCCESS);
+    }
+
+uint8_t shell_command_help(struct taskmaster *taskmaster, uint8_t **arguments)
+    {
+    if(taskmaster == NULL)
+        return (EXIT_FAILURE);
+    if(taskmaster->global_status.global_status_struct_init == FALSE)
+        return (EXIT_FAILURE);
+    if(arguments == NULL)
+        return (EXIT_FAILURE);
+    if(arguments[0] == NULL)
+        return (EXIT_FAILURE);
+
+    (void)taskmaster;
+    (void)arguments;
+
+    display_help(taskmaster);
 
     return (EXIT_SUCCESS);
     }

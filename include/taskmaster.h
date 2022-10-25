@@ -255,6 +255,7 @@ enum shell_command
     SHELL_COMMAND_RESTART,
     SHELL_COMMAND_RELOAD_CONF,
     SHELL_COMMAND_EXIT,
+    SHELL_COMMAND_HELP,
     NUMBER_OF_SHELL_COMMAND
 };
 
@@ -334,6 +335,7 @@ uint8_t  shell_command_stop_function(struct taskmaster *taskmaster, uint8_t **ar
 uint8_t  shell_command_restart_function(struct taskmaster *taskmaster, uint8_t **arguments);
 uint8_t  shell_command_reload_conf_function(struct taskmaster *taskmaster, uint8_t **arguments);
 uint8_t  shell_command_exit_function(struct taskmaster *taskmaster, uint8_t **arguments);
+uint8_t  shell_command_help(struct taskmaster *taskmaster, uint8_t **arguments);
 
 uint8_t init_taskmaster_daemon(struct taskmaster *taskmaster);
 uint8_t init_taskmaster_client(struct taskmaster *taskmaster);

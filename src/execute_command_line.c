@@ -12,6 +12,7 @@ volatile const uint8_t *g_shell_command_name[NUMBER_OF_SHELL_COMMAND] =
     (uint8_t *) "restart",
     (uint8_t *) "reload_conf",
     (uint8_t *) "exit",
+    (uint8_t *) "help",
     };
 
 /**
@@ -25,6 +26,7 @@ uint8_t (*const g_shell_command_function[NUMBER_OF_SHELL_COMMAND])(struct taskma
     shell_command_restart_function,
     shell_command_reload_conf_function,
     shell_command_exit_function,
+    shell_command_help,
     };
 
 uint8_t *get_next_argument(char *line, int32_t *id)
