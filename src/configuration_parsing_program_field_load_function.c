@@ -25,37 +25,15 @@ unsigned int atoui(const char *str)
 */
 uint8_t program_field_cmd_load_function(yaml_parser_t *parser, struct program_specification *program, yaml_event_t *event)
 {
-    if(parser == NULL)
-        return (EXIT_FAILURE);
+    uint8_t *new_cmd = NULL;
+    uint32_t cnt = 0;
 
-    if(program == NULL)
-        return (EXIT_FAILURE);
-
-    if(event == NULL)
-        return (EXIT_FAILURE);
-
-    uint8_t *new_cmd;
-    uint32_t cnt;
-
-    new_cmd = NULL;
-    cnt = 0;
+    if (!parser || !program || !event) return EXIT_FAILURE;
 
     yaml_event_delete(event);
     if(yaml_parser_parse(parser, event) != 1)
-        {
-        #ifdef DEVELOPEMENT
-        fprintf(stderr, ""BRED"ERROR"CRESET": in file "BWHT"%s"CRESET" in function "BWHT"%s"CRESET" at line "BWHT"%d"CRESET"\n    The function to parse the YAML config file failed\n", __FILE__, __func__, __LINE__);
-        #endif
-
-        #ifdef DEMO
-        fprintf(stderr, ""BRED"ERROR"CRESET": in file "BWHT"%s"CRESET" at line "BWHT"%s"CRESET"\n", __FILE__, __LINE__);
-        #endif
-
-        #ifdef PRODUCTION
-        fprintf(stderr, ""BRED"ERROR"CRESET"\n");
-        #endif 
-        return (EXIT_FAILURE);
-        }
+        log_error("The function to parse the YAML config file failed", __FILE__,
+                __func__, __LINE__);
 
     if(event->type != YAML_SCALAR_EVENT || event->data.scalar.value == NULL || event->data.scalar.length == 0)
         return (EXIT_FAILURE);
@@ -66,7 +44,6 @@ uint8_t program_field_cmd_load_function(yaml_parser_t *parser, struct program_sp
 
     program->str_start_command = new_cmd;
 
-    cnt = 0;
     while(cnt < event->data.scalar.length)
         {
         program->str_start_command[cnt] = event->data.scalar.value[cnt];
@@ -74,6 +51,10 @@ uint8_t program_field_cmd_load_function(yaml_parser_t *parser, struct program_sp
         }
     program->str_start_command[cnt] = NIL;
 
+    program->argv = ft_split((char *)program->str_start_command, ' ');
+    if (!program->argv)
+        log_error("unable to split program->str_start_command", __FILE__,
+                __func__, __LINE__);
     return (EXIT_SUCCESS);
 }
 

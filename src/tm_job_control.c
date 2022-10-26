@@ -496,7 +496,7 @@ static void exit_job_control(struct program_list *node) {
 }
 
 /*
- * The master thread listen the clients events - start, stop, restart - and
+ * The master thread listen the client events - start, stop, restart - and
  * handle them.
  *
  * @args:
@@ -573,10 +573,6 @@ static uint8_t init_pgm_spec_list(struct program_list *pgm_node) {
             log_error("unable to calloc program->thrd", __FILE__, __func__,
                       __LINE__);
         init_thread(pgm);
-        pgm->argv = ft_split((char *)pgm->str_start_command, ' ');
-        if (!pgm->argv)
-            log_error("unable to split program->str_start_command", __FILE__,
-                      __func__, __LINE__);
         pgm = pgm->next;
     }
     return EXIT_SUCCESS;

@@ -18,4 +18,3 @@ programs:
     env:
       STARTED_BY: taskmaster
       ANSWER: 42
-    log: true

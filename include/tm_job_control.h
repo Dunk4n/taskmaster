@@ -5,7 +5,7 @@
 #ifndef TM_JOB_CONTROL_H
 #define TM_JOB_CONTROL_H
 
-/* usleep() value for master_thread listening loop - in ms */
+/* usleep() value for master_thread listening loop - in us */
 #define CLIENT_LISTENING_RATE (200)
 #define START_SUPERVISOR_RATE (400)
 #define STOP_SUPERVISOR_RATE (400)
