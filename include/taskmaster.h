@@ -176,15 +176,7 @@ struct program_specification
         int32_t err; /* fd log stderr */
     } log;
 
-    /* runtime data relative to a thread. */
-    struct thread_data {
-      uint32_t rid;  /* rank id of current thread/proc. Index for an array */
-      pthread_t tid; /* thread id of current thread */
-      uint32_t pid;  /* pid of current process */
-      /* how many time the process can be restarted */
-      atomic_int restart_counter;
-      struct timeval start_timestamp; /* time when process started */
-    } *thrd; /* array of thread_data. One thread per processus */
+    struct thread_data *thrd; /* dynamic array, one stuct per processus */
 
     atomic_uint nb_thread_alive; /* count how many launcher thread are alive*/
     struct timeval stop_timestamp; /* time when client asked to stop */
@@ -193,6 +185,25 @@ struct program_specification
     struct program_list *node;
     /* Linked list */
     struct program_specification *next;
+};
+
+/* runtime data relative to a thread. One launcher thread has one timer */
+struct thread_data {
+    struct program_list *node; /* pointer to the node */
+    struct program_specification *pgm; /* pointer to the related pgm data */
+    uint32_t rid;  /* rank id of current thread/proc. Index for an array */
+    pthread_t tid; /* thread id of current thread */
+    uint32_t pid;  /* pid of current process */
+
+    atomic_int restart_counter; /* how many time the process can be restarted */
+    struct timeval start_timestamp; /* time when process started */
+
+    pthread_barrier_t sync; /* barrier to synchronize launcher thread & timer */
+    pthread_mutex_t mtx_timer;
+    pthread_cond_t cond_timer; /* conditon variable to unlock timer */
+    pthread_t timer_id; /* thread id of start_timer thread */
+    atomic_bool restart; /* restart timer */
+    atomic_bool exit; /* exit timer */
 };
 
 /**
@@ -309,16 +320,6 @@ typedef uint8_t (*callback)(struct program_specification *,
 typedef struct client_handler {
     callback cb;
 } s_client_handler;
-
-/* used to keep in memory only thread_data struct we want to compare 'later' */
-typedef struct time_control {
-    struct program_specification *pgm;
-    struct timeval start;
-    pthread_t thrd_id;
-    uint32_t pid;
-    uint32_t rid;
-    uint8_t exit;
-} s_time_control;
 
 uint8_t tm_job_control(struct program_list *taskmaster);
 
