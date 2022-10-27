@@ -10,7 +10,7 @@ programs:
       - 0
       - 2
     startretries: 3
-    starttime: 20
+    starttime: 2
     stopsignal: TERM
     stoptime: 3
     stdout: /tmp/alpha.stdout

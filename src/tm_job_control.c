@@ -40,6 +40,8 @@ static void exit_thread(struct thread_data *thrd) {
     if (!thrd) return;
     THRD_DATA_SET(pid, 0);
     THRD_DATA_SET(tid, 0);
+    THRD_DATA_SET(exit, FALSE);
+    THRD_DATA_SET(restart, FALSE);
     PGM_SPEC_SET(nb_thread_alive, PGM_SPEC_GET(nb_thread_alive) - 1);
     if (PGM_SPEC_GET(nb_thread_alive) <= 0) PGM_STATE_SET(started, FALSE);
 }
@@ -127,6 +129,8 @@ static void thread_data_update(struct thread_data *thrd, pid_t pid) {
     THRD_DATA_SET(start_timestamp, start);
     THRD_DATA_SET(pid, pid);
     THRD_DATA_SET(restart_counter, THRD_DATA_GET(restart_counter) - 1);
+    pthread_mutex_lock(&thrd->mtx_timer);
+    pthread_mutex_unlock(&thrd->mtx_timer);
     pthread_cond_signal(&thrd->cond_timer);
     TM_THRD_LOG("LAUNCHED");
     debug_thrd();
@@ -137,8 +141,6 @@ static void *exit_launcher_thread(struct thread_data *thrd) {
     THRD_DATA_SET(exit, TRUE);
     pthread_cond_signal(&thrd->cond_timer);
     pthread_join(THRD_DATA_GET(timer_id), NULL);
-    pthread_mutex_destroy(&thrd->mtx_timer);
-    pthread_cond_destroy(&thrd->cond_timer);
     exit_thread(thrd);
     return NULL;
 }
@@ -152,13 +154,14 @@ static void *start_timer(void *arg) {
     struct timeval started;
     pid_t pid;
 
-    pthread_barrier_wait(&thrd->sync); /* synchronize with launcher_thread */
-wait:
-    if (THRD_DATA_GET(exit)) return NULL;
-    THRD_DATA_SET(restart, FALSE);
-
-    if (THRD_DATA_GET(exit)) return NULL;
     pthread_mutex_lock(&thrd->mtx_timer);
+    sem_post(&thrd->sync); /* sync launcher thread with timer at init */
+wait:
+    if (THRD_DATA_GET(exit)) {
+        pthread_mutex_unlock(&thrd->mtx_timer);
+        return NULL;
+    }
+
     pthread_cond_wait(&thrd->cond_timer, &thrd->mtx_timer);
     pthread_mutex_unlock(&thrd->mtx_timer);
 
@@ -175,11 +178,13 @@ wait:
         }
         if (THRD_DATA_GET(restart)) {
             TM_START_LOG("DIDN'T LAUNCHED CORRECTLY");
+            pthread_mutex_lock(&thrd->mtx_timer);
             goto wait;
         }
         usleep(START_SUPERVISOR_RATE);
     }
     TM_START_LOG("LAUNCHED CORRECTLY");
+    pthread_mutex_lock(&thrd->mtx_timer);
     goto wait;
 
     return NULL;
@@ -204,7 +209,7 @@ static void *routine_launcher_thrd(void *arg) {
     if (pthread_create(&thrd->timer_id, NULL, start_timer, arg))
         err_display("failed to create start supervisor thread", __FILE__,
                     __func__, __LINE__);
-    pthread_barrier_wait(&thrd->sync); /* synchronize with timer */
+    sem_wait(&thrd->sync);
     PGM_SPEC_SET(nb_thread_alive, PGM_SPEC_GET(nb_thread_alive) + 1);
     while (pgm_restart > 0) {
         /* the more it restarts the more it sleeps (supervisord behavior) */
@@ -490,6 +495,8 @@ static void exit_job_control(struct program_list *node) {
             if (pgm->program_state.stopping) i++;
         usleep(EXIT_MASTER_RATE);
     }
+    /* pthread_mutex_destroy(&thrd->mtx_timer); //TODO mettre ça là ou il faut*/
+    /* pthread_cond_destroy(&thrd->cond_timer); */
     for (pgm = node->program_linked_list; pgm;) {
         tmp = pgm->next;
         /* destroy_pgm(pgm); */
@@ -542,9 +549,9 @@ static void init_thread(struct program_specification *pgm,
         THRD_DATA_SET(restart_counter, pgm->start_retries);
         THRD_DATA_SET(pgm, pgm);
         THRD_DATA_SET(node, node);
+        sem_init(&thrd->sync, 0, 0);
         pthread_mutex_init(&thrd->mtx_timer, NULL);
         pthread_cond_init(&thrd->cond_timer, NULL);
-        pthread_barrier_init(&thrd->sync, NULL, 2);
     }
 }
 

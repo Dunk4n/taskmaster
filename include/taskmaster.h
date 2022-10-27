@@ -15,6 +15,7 @@
 # include <netdb.h>
 # include <errno.h>
 # include <stdatomic.h>
+# include <semaphore.h>
 # include <sys/socket.h>
 # include <sys/wait.h>
 # include <sys/stat.h>
@@ -198,7 +199,7 @@ struct thread_data {
     atomic_int restart_counter; /* how many time the process can be restarted */
     struct timeval start_timestamp; /* time when process started */
 
-    pthread_barrier_t sync; /* barrier to synchronize launcher thread & timer */
+    sem_t sync; /* semaphore to synchronize timer & launcher thread at init */
     pthread_mutex_t mtx_timer;
     pthread_cond_t cond_timer; /* conditon variable to unlock timer */
     pthread_t timer_id; /* thread id of start_timer thread */
