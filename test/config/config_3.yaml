@@ -18,7 +18,6 @@ programs:
     env:
       STARTED_BY: taskmaster
       ANSWER: 42
-    log: true
   daemon_BETA:
     cmd: "/home/user42/42/taskmaster/test/daemons/daemon_BETA arg1 arg2"
     numprocs: 5

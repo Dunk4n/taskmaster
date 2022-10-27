@@ -36,28 +36,20 @@ static uint32_t timediff(struct timeval *time1) {
 }
 
 /* Set pid & tid of the related thread_data structure to 0 */
-static void exit_thread(struct program_specification *pgm, int32_t id) {
-    if (!pgm || id == -1) return;
+static void exit_thread(struct thread_data *thrd) {
+    if (!thrd) return;
     THRD_DATA_SET(pid, 0);
     THRD_DATA_SET(tid, 0);
-    pgm->nb_thread_alive -= 1;
+    THRD_DATA_SET(exit, FALSE);
+    THRD_DATA_SET(restart, FALSE);
+    PGM_SPEC_SET(nb_thread_alive, PGM_SPEC_GET(nb_thread_alive) - 1);
     if (PGM_SPEC_GET(nb_thread_alive) <= 0) PGM_STATE_SET(started, FALSE);
-}
-
-static int32_t get_id(const struct program_specification *pgm) {
-    pthread_t tid = pthread_self();
-    for (uint32_t i = 0; i < pgm->number_of_process; i++) {
-        if (tid == pgm->thrd[i].tid && i == pgm->thrd[i].rid) return i;
-    }
-    return -1;
 }
 
 /*
  * wait for child to exit() or to be killed by any signal
  **/
-static int32_t child_control(const struct program_specification *pgm,
-                             int32_t id, pid_t pid) {
-    struct program_list *node = pgm->node;
+static int32_t child_control(struct thread_data *thrd, pid_t pid) {
     int32_t w, wstatus, child_ret = 0;
     uint8_t expected = FALSE;
 
@@ -87,6 +79,7 @@ static int32_t child_control(const struct program_specification *pgm,
             TM_CHILDCONTROL_LOG("CONTINUED");
         }
     } while (!WIFEXITED(wstatus) && !WIFSIGNALED(wstatus));
+    THRD_DATA_SET(restart, (THRD_DATA_GET(restart_counter) > 0));
     return child_ret;
 }
 
@@ -95,8 +88,9 @@ static int32_t child_control(const struct program_specification *pgm,
  * or file logging.
  * Then execve() the process.
  **/
-static void configure_and_launch(struct program_list *node,
-                                 struct program_specification *pgm) {
+static void configure_and_launch(struct thread_data *thrd) {
+    struct program_specification *pgm = thrd->pgm;
+
     if (pgm->umask) umask(pgm->umask); /* default file mode creation */
     /* privilege de-escalation if launched in sudo mode */
     if (getuid() == 0)
@@ -122,68 +116,77 @@ static void configure_and_launch(struct program_list *node,
     // fichier de config en arguments.
 }
 
-static void *routine_start_supervisor(void *arg) {
-    s_time_control *time_control = arg;
-    struct program_specification *pgm = time_control->pgm;
-    struct program_list *node = pgm->node;
-    uint32_t id = time_control->rid;
-
-    while (timediff(&time_control->start) < PGM_SPEC_GET(start_time)) {
-        if (time_control->pid != THRD_DATA_GET(pid) || time_control->exit) {
-            TM_START_LOG("DIDN'T LAUNCHED CORRECTLY");
-            return NULL;
-        }
-        usleep(START_SUPERVISOR_RATE);
-    }
-    TM_START_LOG("LAUNCHED CORRECTLY");
-
-    return NULL;
-}
-
 /*
  * Update information of the thread_data struct related to one process - the
  * timestamp, pid & restart_counter.
  * Launch an attached timer thread which monitor if the process is still alive
  * after 'start_time' seconds.
  **/
-static void thread_data_update(struct program_list *node,
-                               struct program_specification *pgm, int32_t id,
-                               pid_t pid, s_time_control *time_control) {
+static void thread_data_update(struct thread_data *thrd, pid_t pid) {
     struct timeval start;
 
     gettimeofday(&start, NULL);
     THRD_DATA_SET(start_timestamp, start);
     THRD_DATA_SET(pid, pid);
     THRD_DATA_SET(restart_counter, THRD_DATA_GET(restart_counter) - 1);
+    pthread_mutex_lock(&thrd->mtx_timer);
+    pthread_mutex_unlock(&thrd->mtx_timer);
+    pthread_cond_signal(&thrd->cond_timer);
     TM_THRD_LOG("LAUNCHED");
     debug_thrd();
-    time_control[THRD_DATA_GET(restart_counter)].pid = pid;
-    time_control[THRD_DATA_GET(restart_counter)].start = start;
-    if (pthread_create(&time_control[THRD_DATA_GET(restart_counter)].thrd_id,
-                       NULL, routine_start_supervisor,
-                       &time_control[THRD_DATA_GET(restart_counter)]))
-        err_display("failed to create start supervisor thread", __FILE__,
-                    __func__, __LINE__);
 }
 
-static void init_time_control(struct program_specification *pgm, int32_t id,
-                              s_time_control *time_control) {
-    for (uint32_t i = 0; i < PGM_SPEC_GET(start_retries) + 1; i++) {
-        time_control[i].pgm = pgm;
-        time_control[i].rid = id;
-    }
-}
-
-static void *exit_launcher_thread(struct program_list *node,
-                                  struct program_specification *pgm,
-                                  s_time_control *time_control, int32_t id) {
+static void *exit_launcher_thread(struct thread_data *thrd) {
     TM_THRD_LOG("EXITED");
-    exit_thread(pgm, id);
-    for (uint32_t i = 0; i < PGM_SPEC_GET(start_retries) + 1; i++)
-        time_control[i].exit = TRUE;
-    for (uint32_t i = 0; i < PGM_SPEC_GET(start_retries) + 1; i++)
-        pthread_join(time_control[i].thrd_id, NULL);
-    free(time_control);
+    THRD_DATA_SET(exit, TRUE);
+    pthread_cond_signal(&thrd->cond_timer);
+    pthread_join(THRD_DATA_GET(timer_id), NULL);
+    exit_thread(thrd);
+    return NULL;
+}
+
+/*
+ * This joinable thread is a timer which is coupled with its launcher thread.
+ * It checks if the processus is launched correctly.
+ */
+static void *start_timer(void *arg) {
+    struct thread_data *thrd = arg;
+    struct timeval started;
+    pid_t pid;
+
+    pthread_mutex_lock(&thrd->mtx_timer);
+    sem_post(&thrd->sync); /* sync launcher thread with timer at init */
+wait:
+    if (THRD_DATA_GET(exit)) {
+        pthread_mutex_unlock(&thrd->mtx_timer);
+        return NULL;
+    }
+
+    pthread_cond_wait(&thrd->cond_timer, &thrd->mtx_timer);
+    pthread_mutex_unlock(&thrd->mtx_timer);
+
+    if (THRD_DATA_GET(exit)) return NULL;
+    THRD_DATA_SET(restart, FALSE);
+
+    started = THRD_DATA_GET(start_timestamp);
+    pid = THRD_DATA_GET(pid);
+
+    while (timediff(&started) < PGM_SPEC_GET(start_time)) {
+        if (THRD_DATA_GET(exit)) {
+            TM_START_LOG("EXITED BEFORE TIME TO LAUNCH");
+            return NULL;
+        }
+        if (THRD_DATA_GET(restart)) {
+            TM_START_LOG("DIDN'T LAUNCHED CORRECTLY");
+            pthread_mutex_lock(&thrd->mtx_timer);
+            goto wait;
+        }
+        usleep(START_SUPERVISOR_RATE);
+    }
+    TM_START_LOG("LAUNCHED CORRECTLY");
+    pthread_mutex_lock(&thrd->mtx_timer);
+    goto wait;
+
     return NULL;
 }
 
@@ -199,23 +202,15 @@ static void *exit_launcher_thread(struct program_list *node,
  *              other things, array of struct thread_data.
  **/
 static void *routine_launcher_thrd(void *arg) {
-    struct program_specification *pgm = arg;
-    struct program_list *node = pgm->node;
-    s_time_control *time_control;
-    const int32_t id = get_id(pgm);
+    struct thread_data *thrd = arg;
     int32_t pgm_restart = 1;
     pid_t pid;
 
-    pgm->nb_thread_alive += 1;
-    if (id == -1)
-        exit_thrd(NULL, id, "couldn't find thread id", __FILE__, __func__,
-                  __LINE__);
-    time_control =
-        calloc(PGM_SPEC_GET(start_retries) + 1, sizeof(*time_control));
-    if (!time_control)
-        exit_thrd(pgm, id, "calloc() failed", __FILE__, __func__, __LINE__);
-    init_time_control(pgm, id, time_control);
-
+    if (pthread_create(&thrd->timer_id, NULL, start_timer, arg))
+        err_display("failed to create start supervisor thread", __FILE__,
+                    __func__, __LINE__);
+    sem_wait(&thrd->sync);
+    PGM_SPEC_SET(nb_thread_alive, PGM_SPEC_GET(nb_thread_alive) + 1);
     while (pgm_restart > 0) {
         /* the more it restarts the more it sleeps (supervisord behavior) */
         sleep((PGM_SPEC_GET(start_retries) + 1) -
@@ -223,19 +218,19 @@ static void *routine_launcher_thrd(void *arg) {
 
         pid = fork();
         if (pid == -1)
-            exit_thrd(pgm, id, "fork() failed", __FILE__, __func__, __LINE__);
+            exit_thrd(thrd, "fork() failed", __FILE__, __func__, __LINE__);
         if (pid == 0) {
-            configure_and_launch(node, pgm);
+            configure_and_launch(thrd);
             exit(EXIT_FAILURE);
         } else {
-            thread_data_update(node, pgm, id, pid, time_control);
-            child_control(pgm, id, pid);
+            thread_data_update(thrd, pid);
+            child_control(thrd, pid);
             pgm_restart =
-                pgm->e_auto_restart * (THRD_DATA_GET(restart_counter));
+                PGM_SPEC_GET(e_auto_restart) * (THRD_DATA_GET(restart_counter));
         }
     }
 
-    return exit_launcher_thread(node, pgm, time_control, id);
+    return exit_launcher_thread(thrd);
 }
 
 /*
@@ -245,11 +240,15 @@ static void *routine_launcher_thrd(void *arg) {
  **/
 static uint8_t create_launcher_threads(struct program_list *node,
                                        struct program_specification *pgm) {
+    struct thread_data *thrd;
+
     for (uint32_t id = 0; id < pgm->number_of_process; id++) {
+        thrd = &pgm->thrd[id];
+
         THRD_DATA_SET(restart_counter, PGM_SPEC_GET(start_retries) + 1);
         if (THRD_DATA_GET(tid) == 0 && THRD_DATA_GET(pid) == 0) {
-            if (pthread_create(&pgm->thrd[id].tid, &node->attr,
-                               routine_launcher_thrd, pgm))
+            if (pthread_create(&thrd->tid, &node->attr, routine_launcher_thrd,
+                               thrd))
                 log_error("failed to create launcher thread", __FILE__,
                           __func__, __LINE__);
         }
@@ -264,11 +263,13 @@ static uint8_t create_launcher_threads(struct program_list *node,
  **/
 static uint8_t stop_all_processus(struct program_specification *pgm,
                                   struct program_list *node) {
+    struct thread_data *thrd;
     struct timeval stop;
 
     gettimeofday(&stop, NULL);
-    PGM_SPEC_SET(stop_timestamp, stop);
+    PGM_SPEC_SET2(stop_timestamp, stop);
     for (uint32_t id = 0; id < pgm->number_of_process; id++) {
+        thrd = &pgm->thrd[id];
         THRD_DATA_SET(restart_counter, 0);
         if (THRD_DATA_GET(tid) && THRD_DATA_GET(pid)) {
             kill(THRD_DATA_GET(pid), pgm->stop_signal);
@@ -282,7 +283,10 @@ static uint8_t stop_all_processus(struct program_specification *pgm,
  * Does nothing if the thread is already down.
  **/
 static uint8_t kill_all_processus(struct program_specification *pgm) {
+    struct thread_data *thrd;
+
     for (uint32_t id = 0; id < pgm->number_of_process; id++) {
+        thrd = &pgm->thrd[id];
         THRD_DATA_SET(restart_counter, 0);
         if (THRD_DATA_GET(tid) && THRD_DATA_GET(pid)) {
             kill(THRD_DATA_GET(pid), SIGTERM);
@@ -307,39 +311,42 @@ static uint8_t do_start(struct program_specification *pgm,
 
     pthread_mutex_lock(&pgm->mtx_client_event);
 
-    if (PGM_STATE_GET(starting) || PGM_STATE_GET(stopping)) {
+    if (PGM_STATE_GET2(starting) || PGM_STATE_GET2(stopping)) {
         pthread_mutex_unlock(&pgm->mtx_client_event);
         return EXIT_FAILURE;
     }
-    PGM_STATE_SET(need_to_start, FALSE);
-    PGM_STATE_SET(starting, TRUE);
-    TM_LOG("start", "%s", PGM_SPEC_GET(str_name));
+    PGM_STATE_SET2(need_to_start, FALSE);
+    PGM_STATE_SET2(starting, TRUE);
+    TM_LOG2("start", "%s", PGM_SPEC_GET2(str_name));
 
     pthread_mutex_unlock(&pgm->mtx_client_event);
 
-    if (stat(PGM_SPEC_GET(argv)[0], &statbuf) == -1)
-        TM_LOG("start error", "%s can't be executed", PGM_SPEC_GET(argv)[0]);
+    if (stat(PGM_SPEC_GET2(argv)[0], &statbuf) == -1)
+        TM_LOG2("start error", "%s can't be executed", PGM_SPEC_GET2(argv)[0]);
     else {
         create_launcher_threads(node, pgm);
-        PGM_STATE_SET(started, TRUE);
+        PGM_STATE_SET2(started, TRUE);
     }
 
-    PGM_STATE_SET(starting, FALSE);
+    PGM_STATE_SET2(starting, FALSE);
     return EXIT_SUCCESS;
 }
 
 /* checks if the processes are stopped in the given time */
-void *routine_stop_supervisor(void *arg) {
+void *stop_timer(void *arg) {
     struct program_specification *pgm = arg;
     struct program_list *node = pgm->node;
+    struct thread_data *thrd;
     uint8_t alive = TRUE;
 
-    while (alive &&
-           timediff(&PGM_SPEC_GET(stop_timestamp)) < PGM_SPEC_GET(stop_time)) {
+    while (alive && timediff(&PGM_SPEC_GET2(stop_timestamp)) <
+                        PGM_SPEC_GET2(stop_time)) {
         usleep(STOP_SUPERVISOR_RATE);
         alive = FALSE;
-        for (uint32_t id = 0; id < PGM_SPEC_GET(number_of_process); id++)
+        for (uint32_t id = 0; id < PGM_SPEC_GET2(number_of_process); id++) {
+            thrd = &pgm->thrd[id];
             if (THRD_DATA_GET(tid) && THRD_DATA_GET(pid)) alive = TRUE;
+        }
     }
     if (alive) {
         kill_all_processus(pgm);
@@ -347,8 +354,8 @@ void *routine_stop_supervisor(void *arg) {
     } else
         TM_STOP_LOG("PROCESSUS STOPPED AS EXPECTED");
 
-    PGM_STATE_SET(stopping, FALSE);
-    PGM_STATE_SET(started, FALSE);
+    PGM_STATE_SET2(stopping, FALSE);
+    PGM_STATE_SET2(started, FALSE);
     return NULL;
 }
 
@@ -361,23 +368,23 @@ static uint8_t do_stop(struct program_specification *pgm,
     pthread_t tid;
 
     pthread_mutex_lock(&pgm->mtx_client_event);
-    if (PGM_STATE_GET(starting) || PGM_STATE_GET(stopping)) {
+    if (PGM_STATE_GET2(starting) || PGM_STATE_GET2(stopping)) {
         pthread_mutex_unlock(&pgm->mtx_client_event);
         return EXIT_FAILURE;
     }
 
-    PGM_STATE_SET(stopping, TRUE);
-    PGM_STATE_SET(need_to_stop, FALSE);
-    TM_LOG("stop", "%s", PGM_SPEC_GET(str_name));
+    PGM_STATE_SET2(stopping, TRUE);
+    PGM_STATE_SET2(need_to_stop, FALSE);
+    TM_LOG2("stop", "%s", PGM_SPEC_GET2(str_name));
     pthread_mutex_unlock(&pgm->mtx_client_event);
     stop_all_processus(pgm, node);
 
-    if (pthread_create(&tid, &node->attr, routine_stop_supervisor, pgm)) {
-        PGM_STATE_SET(stopping, FALSE);
-        PGM_STATE_SET(started, FALSE);
-        TM_LOG("stop control",
-               "[%s] - failed to create routine_timer_stop_watch thread",
-               PGM_SPEC_GET(str_name));
+    if (pthread_create(&tid, &node->attr, stop_timer, pgm)) {
+        PGM_STATE_SET2(stopping, FALSE);
+        PGM_STATE_SET2(started, FALSE);
+        TM_LOG2("stop control",
+                "[%s] - failed to create routine_timer_stop_watch thread",
+                PGM_SPEC_GET2(str_name));
         log_error("failed to create routine_timer_stop_watch thread", __FILE__,
                   __func__, __LINE__);
     }
@@ -388,21 +395,21 @@ static uint8_t do_stop(struct program_specification *pgm,
 static uint8_t do_restart(struct program_specification *pgm,
                           struct program_list *node) {
     pthread_mutex_lock(&pgm->mtx_client_event);
-    if (PGM_STATE_GET(starting) || PGM_STATE_GET(stopping) ||
-        PGM_STATE_GET(restarting)) {
+    if (PGM_STATE_GET2(starting) || PGM_STATE_GET2(stopping) ||
+        PGM_STATE_GET2(restarting)) {
         pthread_mutex_unlock(&pgm->mtx_client_event);
         return EXIT_FAILURE;
     }
 
-    PGM_STATE_SET(need_to_restart, FALSE);
-    PGM_STATE_SET(restarting, TRUE);
-    TM_LOG("restart", "%s", PGM_SPEC_GET(str_name));
+    PGM_STATE_SET2(need_to_restart, FALSE);
+    PGM_STATE_SET2(restarting, TRUE);
+    TM_LOG2("restart", "%s", PGM_SPEC_GET2(str_name));
     pthread_mutex_unlock(&pgm->mtx_client_event);
     if (do_stop(pgm, node)) goto exit_restart;
     if (do_start(pgm, node)) goto exit_restart;
 
 exit_restart:
-    PGM_STATE_SET(restarting, FALSE);
+    PGM_STATE_SET2(restarting, FALSE);
     return EXIT_SUCCESS;
 }
 
@@ -420,7 +427,7 @@ static uint8_t set_autostart(struct program_list *node) {
     struct program_specification *pgm = node->program_linked_list;
 
     for (uint32_t i = 0; i < node->number_of_program; i++) {
-        if (pgm->auto_start) PGM_STATE_SET(need_to_start, TRUE);
+        if (pgm->auto_start) PGM_STATE_SET2(need_to_start, TRUE);
         pgm = pgm->next;
     }
     return EXIT_SUCCESS;
@@ -479,7 +486,7 @@ static uint8_t set_autostart(struct program_list *node) {
 static void exit_job_control(struct program_list *node) {
     struct program_specification *pgm, *tmp;
 
-    TM_LOG("exit", "...", NULL);
+    TM_LOG2("exit", "...", NULL);
     for (pgm = node->program_linked_list; pgm; pgm = pgm->next)
         do_stop(pgm, node);
     for (int i = 1; i;) {
@@ -488,6 +495,8 @@ static void exit_job_control(struct program_list *node) {
             if (pgm->program_state.stopping) i++;
         usleep(EXIT_MASTER_RATE);
     }
+    /* pthread_mutex_destroy(&thrd->mtx_timer); //TODO mettre ça là ou il faut*/
+    /* pthread_cond_destroy(&thrd->cond_timer); */
     for (pgm = node->program_linked_list; pgm;) {
         tmp = pgm->next;
         /* destroy_pgm(pgm); */
@@ -496,7 +505,7 @@ static void exit_job_control(struct program_list *node) {
 }
 
 /*
- * The master thread listen the clients events - start, stop, restart - and
+ * The master thread listen the client events - start, stop, restart - and
  * handle them.
  *
  * @args:
@@ -514,26 +523,35 @@ static void *routine_master_thrd(void *arg) {
     while (node->global_status.exit == FALSE) {
         pgm = node->program_linked_list;
         while (pgm) {
-            client_event = ((PGM_STATE_GET(need_to_restart) * CLIENT_RESTART) +
-                            (PGM_STATE_GET(need_to_stop) * CLIENT_STOP) +
-                            (PGM_STATE_GET(need_to_start) * CLIENT_START));
+            client_event = ((PGM_STATE_GET2(need_to_restart) * CLIENT_RESTART) +
+                            (PGM_STATE_GET2(need_to_stop) * CLIENT_STOP) +
+                            (PGM_STATE_GET2(need_to_start) * CLIENT_START));
             if (client_event) handler[client_event].cb(pgm, node);
             pgm = pgm->next;
         }
         usleep(CLIENT_LISTENING_RATE);
     }
     exit_job_control(node);
-    TM_LOG("taskmaster", "program exit", NULL);
+    TM_LOG2("taskmaster", "program exit", NULL);
     return NULL;
 }
 
 /*
  * Set rank id and restart counter in each thread_data struct
  **/
-static void init_thread(const struct program_specification *pgm) {
+static void init_thread(struct program_specification *pgm,
+                        struct program_list *node) {
+    struct thread_data *thrd;
+
     for (uint32_t id = 0; id < pgm->number_of_process; id++) {
+        thrd = &pgm->thrd[id];
         THRD_DATA_SET(rid, id);
         THRD_DATA_SET(restart_counter, pgm->start_retries);
+        THRD_DATA_SET(pgm, pgm);
+        THRD_DATA_SET(node, node);
+        sem_init(&thrd->sync, 0, 0);
+        pthread_mutex_init(&thrd->mtx_timer, NULL);
+        pthread_cond_init(&thrd->cond_timer, NULL);
     }
 }
 
@@ -563,20 +581,16 @@ static uint8_t init_fd_log(struct program_specification *pgm) {
  *   struct program_list *pgm_node  address of a node which contains
  *                                  program_specification linked list & metadata
  **/
-static uint8_t init_pgm_spec_list(struct program_list *pgm_node) {
-    struct program_specification *pgm = pgm_node->program_linked_list;
+static uint8_t init_pgm_spec_list(struct program_list *node) {
+    struct program_specification *pgm = node->program_linked_list;
 
-    for (uint32_t i = 0; i < pgm_node->number_of_program && pgm; i++) {
+    for (uint32_t i = 0; i < node->number_of_program && pgm; i++) {
         if (init_fd_log(pgm)) return EXIT_FAILURE;
         pgm->thrd = calloc(pgm->number_of_process, sizeof(struct thread_data));
         if (!pgm->thrd)
             log_error("unable to calloc program->thrd", __FILE__, __func__,
                       __LINE__);
-        init_thread(pgm);
-        pgm->argv = ft_split((char *)pgm->str_start_command, ' ');
-        if (!pgm->argv)
-            log_error("unable to split program->str_start_command", __FILE__,
-                      __func__, __LINE__);
+        init_thread(pgm, node);
         pgm = pgm->next;
     }
     return EXIT_SUCCESS;
@@ -596,18 +610,6 @@ uint8_t tm_job_control(struct program_list *node) {
                        node))
         log_error("failed to create master thread", __FILE__, __func__,
                   __LINE__);
-    TM_LOG("taskmaster", "program started", NULL);
+    TM_LOG2("taskmaster", "program started", NULL);
     return EXIT_SUCCESS;
 }
-
-/* role du master thread communiquer avec le client via la structure runtime */
-/* (le client set des variables dedans, que le master thread va */
-/* checker continuellement). Ex voir si il y a un programme a kill. */
-
-/* Le master thread est detached et lance tout les launch_thread en detached. */
-/* Si le master thread est kill il y a 2 façons de gérer: soit il kill aussi */
-/* son parent (et maybe tout les process), soit il créé un autre master thread.
- */
-/* Après, il y a un signal qui n'est pas gérable donc maybe il faut que le
- * master */
-/* thread envoie régulièrement au parent un signe de vie ? */
