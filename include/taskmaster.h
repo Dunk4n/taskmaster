@@ -219,8 +219,7 @@ struct program_list {
         uint8_t exit  : 1; /* exit command to master thread */
     } global_status;
 
-    /* id of main thread - it listen to client events */
-    pthread_t master_thread;
+    pthread_t master_thread; /* id of master thread */
     pthread_attr_t attr; /* pthread attribute initialized to detached */
 
     pthread_mutex_t               mutex_program_linked_list;

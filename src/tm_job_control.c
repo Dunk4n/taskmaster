@@ -42,8 +42,8 @@ static void exit_thread(struct thread_data *thrd) {
     THRD_DATA_SET(tid, 0);
     THRD_DATA_SET(exit, FALSE);
     THRD_DATA_SET(restart, FALSE);
-    PGM_SPEC_SET(nb_thread_alive, PGM_SPEC_GET(nb_thread_alive) - 1);
-    if (PGM_SPEC_GET(nb_thread_alive) <= 0) PGM_STATE_SET(started, FALSE);
+    thrd->pgm->nb_thread_alive--;
+    if (PGM_SPEC_GET(nb_thread_alive) == 0) PGM_STATE_SET(started, FALSE);
 }
 
 /*
@@ -109,11 +109,6 @@ static void configure_and_launch(struct thread_data *thrd) {
                PGM_SPEC_GET(str_name));
         err_display("execve() failed", __FILE__, __func__, __LINE__);
     }
-    // BUG. Sur un cas ou on fait retry 8 fois un pgm avec 1 proc, qui n'existe
-    // pas et qui donc fail execve(), il y a parfois un bug: parfois execve ne
-    // fail pas et le programme en question qui est lancé - et visible avec
-    // la commande 'ps -aux | grep taskmaster' est... taskmaster avec le même
-    // fichier de config en arguments.
 }
 
 /*
@@ -130,8 +125,8 @@ static void thread_data_update(struct thread_data *thrd, pid_t pid) {
     THRD_DATA_SET(pid, pid);
     THRD_DATA_SET(restart_counter, THRD_DATA_GET(restart_counter) - 1);
     pthread_mutex_lock(&thrd->mtx_timer);
-    pthread_mutex_unlock(&thrd->mtx_timer);
     pthread_cond_signal(&thrd->cond_timer);
+    pthread_mutex_unlock(&thrd->mtx_timer);
     TM_THRD_LOG("LAUNCHED");
     debug_thrd();
 }
@@ -206,11 +201,11 @@ static void *routine_launcher_thrd(void *arg) {
     int32_t pgm_restart = 1;
     pid_t pid;
 
+    thrd->pgm->nb_thread_alive++;
     if (pthread_create(&thrd->timer_id, NULL, start_timer, arg))
-        err_display("failed to create start supervisor thread", __FILE__,
-                    __func__, __LINE__);
+        exit_thrd(thrd, "pthread_create() failed", __FILE__, __func__,
+                  __LINE__);
     sem_wait(&thrd->sync);
-    PGM_SPEC_SET(nb_thread_alive, PGM_SPEC_GET(nb_thread_alive) + 1);
     while (pgm_restart > 0) {
         /* the more it restarts the more it sleeps (supervisord behavior) */
         sleep((PGM_SPEC_GET(start_retries) + 1) -
@@ -433,74 +428,17 @@ static uint8_t set_autostart(struct program_list *node) {
     return EXIT_SUCCESS;
 }
 
-/* static void destroy_pgm(struct program_specification *pgm) { */
-/*     if (!pgm) return; */
-/*     pthread_mutex_destroy(&pgm->mtx_client_event); */
-/*     pthread_mutex_destroy(&pgm->mtx_pgm_state); */
-/*     if (pgm->str_name) { */
-/*         free(pgm->str_name); */
-/*         pgm->str_name = NULL; */
-/*     } */
-/*     if (pgm->str_start_command) { */
-/*         free(pgm->str_start_command); */
-/*         pgm->str_start_command = NULL; */
-/*     } */
-/*     if (pgm->exit_codes) { */
-/*         free(pgm->exit_codes); */
-/*         pgm->exit_codes = NULL; */
-/*     } */
-/*     if (pgm->str_stdout) { */
-/*         free(pgm->str_stdout); */
-/*         pgm->str_stdout = NULL; */
-/*     } */
-/*     if (pgm->str_stderr) { */
-/*         free(pgm->str_stderr); */
-/*         pgm->str_stderr = NULL; */
-/*     } */
-/*     if (pgm->working_dir) { */
-/*         free(pgm->working_dir); */
-/*         pgm->working_dir = NULL; */
-/*     } */
-/*     if (pgm->thrd) { */
-/*         free(pgm->thrd); */
-/*         pgm->thrd = NULL; */
-/*     } */
-/*     if (pgm->env) { */
-/*         for (uint32_t i = 0; pgm->env[i]; i++) { */
-/*             free(pgm->env[i]); */
-/*             pgm->env[i] = NULL; */
-/*         } */
-/*         free(pgm->env); */
-/*         pgm->env = NULL; */
-/*     } */
-/*     if (pgm->argv) { */
-/*         for (uint32_t i = 0; pgm->argv[i]; i++) { */
-/*             free(pgm->argv[i]); */
-/*             pgm->argv[i] = NULL; */
-/*         } */
-/*         free(pgm->argv); */
-/*         pgm->argv = NULL; */
-/*     } */
-/* } */
-
 static void exit_job_control(struct program_list *node) {
     struct program_specification *pgm, *tmp;
 
     TM_LOG2("exit", "...", NULL);
     for (pgm = node->program_linked_list; pgm; pgm = pgm->next)
         do_stop(pgm, node);
-    for (int i = 1; i;) {
-        i = 0;
+    for (int alive = 1; alive;) {
+        alive = 0;
         for (pgm = node->program_linked_list; pgm; pgm = pgm->next)
-            if (pgm->program_state.stopping) i++;
+            if (pgm->nb_thread_alive) alive++;
         usleep(EXIT_MASTER_RATE);
-    }
-    /* pthread_mutex_destroy(&thrd->mtx_timer); //TODO mettre ça là ou il faut*/
-    /* pthread_cond_destroy(&thrd->cond_timer); */
-    for (pgm = node->program_linked_list; pgm;) {
-        tmp = pgm->next;
-        /* destroy_pgm(pgm); */
-        pgm = tmp;
     }
 }
 
@@ -537,66 +475,6 @@ static void *routine_master_thrd(void *arg) {
 }
 
 /*
- * Set rank id and restart counter in each thread_data struct
- **/
-static void init_thread(struct program_specification *pgm,
-                        struct program_list *node) {
-    struct thread_data *thrd;
-
-    for (uint32_t id = 0; id < pgm->number_of_process; id++) {
-        thrd = &pgm->thrd[id];
-        THRD_DATA_SET(rid, id);
-        THRD_DATA_SET(restart_counter, pgm->start_retries);
-        THRD_DATA_SET(pgm, pgm);
-        THRD_DATA_SET(node, node);
-        sem_init(&thrd->sync, 0, 0);
-        pthread_mutex_init(&thrd->mtx_timer, NULL);
-        pthread_cond_init(&thrd->cond_timer, NULL);
-    }
-}
-
-/*
- * If config says that process logs somewhere, init_fd_log() open and
- * store these files
- **/
-static uint8_t init_fd_log(struct program_specification *pgm) {
-    if (pgm->str_stdout) {
-        pgm->log.out = open(pgm->str_stdout, O_RDWR | O_CREAT | O_APPEND, 0755);
-        if (pgm->log.out == FD_ERR)
-            log_error("open str_stdout failed", __FILE__, __func__, __LINE__);
-    }
-    if (pgm->str_stderr) {
-        pgm->log.err = open(pgm->str_stderr, O_RDWR | O_CREAT | O_APPEND, 0755);
-        if (pgm->log.err == FD_ERR)
-            log_error("open str_stderr failed", __FILE__, __func__, __LINE__);
-    }
-    return EXIT_SUCCESS;
-}
-
-/*
- * Loop thru struct program_specification linked list to malloc
- * 'number_of_process' struct thread_data and initialize it. Get fd from log
- * files if required
- * @args:
- *   struct program_list *pgm_node  address of a node which contains
- *                                  program_specification linked list & metadata
- **/
-static uint8_t init_pgm_spec_list(struct program_list *node) {
-    struct program_specification *pgm = node->program_linked_list;
-
-    for (uint32_t i = 0; i < node->number_of_program && pgm; i++) {
-        if (init_fd_log(pgm)) return EXIT_FAILURE;
-        pgm->thrd = calloc(pgm->number_of_process, sizeof(struct thread_data));
-        if (!pgm->thrd)
-            log_error("unable to calloc program->thrd", __FILE__, __func__,
-                      __LINE__);
-        init_thread(pgm, node);
-        pgm = pgm->next;
-    }
-    return EXIT_SUCCESS;
-}
-
-/*
  * Sets each *thrd variable into the program_specification linked list &
  * launch the master thread which controls and launch all others
  * launcher_threads
@@ -605,9 +483,7 @@ static uint8_t init_pgm_spec_list(struct program_list *node) {
  *                                  program_specification linked list & metadata
  **/
 uint8_t tm_job_control(struct program_list *node) {
-    if (init_pgm_spec_list(node)) return EXIT_FAILURE;
-    if (pthread_create(&node->master_thread, &node->attr, routine_master_thrd,
-                       node))
+    if (pthread_create(&node->master_thread, NULL, routine_master_thrd, node))
         log_error("failed to create master thread", __FILE__, __func__,
                   __LINE__);
     TM_LOG2("taskmaster", "program started", NULL);

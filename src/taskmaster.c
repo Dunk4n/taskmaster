@@ -216,63 +216,56 @@ uint8_t init_taskmaster(struct taskmaster *taskmaster)
     return (EXIT_SUCCESS);
     }
 
-void    stop_and_wait_all_the_program(struct taskmaster *taskmaster)
-    {
-    if(taskmaster == NULL)
-        return;
-    if(taskmaster->global_status.global_status_struct_init == FALSE)
-        return;
-    if(taskmaster->programs.global_status.global_status_struct_init == FALSE)
+void stop_and_wait_all_the_program(struct taskmaster *taskmaster) {
+    struct program_specification *pgm = NULL;
+
+    if (!taskmaster || !taskmaster->global_status.global_status_struct_init ||
+        !taskmaster->programs.global_status.global_status_struct_init)
         return;
 
-    struct program_specification *actual_program;
-    uint32_t                      number_of_seconds;
-    uint32_t                      tmp_number_of_program;
-    uint8_t                       buffer[OUTPUT_BUFFER_SIZE];
-
-    actual_program        = NULL;
-    buffer[0]             = NIL;
-    number_of_seconds     = 0;
-    tmp_number_of_program = 0;
-
-    if(pthread_mutex_lock(&(taskmaster->programs.mutex_program_linked_list)) != 0)
+    if (pthread_mutex_lock(&(taskmaster->programs.mutex_program_linked_list)))
         return;
 
-    actual_program = taskmaster->programs.program_linked_list;
-    while(actual_program != NULL)
-        {
-        if(actual_program->global_status.global_status_struct_init == FALSE)
-            {
-            actual_program = NULL;
+    pgm = taskmaster->programs.program_linked_list;
+    while (!pgm) {
+        if (pgm->global_status.global_status_struct_init == FALSE) {
+            pgm = NULL;
             break;
-            }
-
-        pthread_mutex_lock(&actual_program->mtx_pgm_state);
-        actual_program->program_state.need_to_be_removed = TRUE;
-        pthread_mutex_unlock(&actual_program->mtx_pgm_state);
-
-        actual_program = actual_program->next;
         }
 
-    if(pthread_mutex_unlock(&(taskmaster->programs.mutex_program_linked_list)) != 0)
+        pthread_mutex_lock(&pgm->mtx_pgm_state);
+        pgm->program_state.need_to_be_removed = TRUE;
+        pthread_mutex_unlock(&pgm->mtx_pgm_state);
+
+        pgm = pgm->next;
+    }
+
+    if (pthread_mutex_unlock(&(taskmaster->programs.mutex_program_linked_list)))
         return;
 
-    //TODO wait for all the program to stop
-    tmp_number_of_program = taskmaster->programs.number_of_program;
-    number_of_seconds     = 0;
     taskmaster->programs.global_status.exit = TRUE;
-    while(taskmaster->programs.number_of_program != 0 && number_of_seconds < NUMBER_OF_SECONDS_TO_WAIT_FOR_EXIT)
-        {
-        sleep(1);
-        if(taskmaster->programs.number_of_program > 0)
-            {
-            //TODO during wait display status of all the program or number of program still up?
-            snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, "Number of program still running (%u/%u)\n", taskmaster->programs.number_of_program, tmp_number_of_program);
-            print_command_output(taskmaster, buffer);
-            }
-        number_of_seconds++;
-        }
-    }
+    pthread_join(taskmaster->programs.master_thread, NULL);
+
+    /* uint8_t buffer[OUTPUT_BUFFER_SIZE] = {0}; */
+    /* uint32_t                      number_of_seconds; */
+    /* uint32_t                      tmp_number_of_program; */
+    /* number_of_seconds     = 0; */
+    /* tmp_number_of_program = 0; */
+    //TODO wait for all the program to stop
+    /* tmp_number_of_program = taskmaster->programs.number_of_program; */
+    /* number_of_seconds     = 0; */
+    /* while(taskmaster->programs.number_of_program != 0 && number_of_seconds < NUMBER_OF_SECONDS_TO_WAIT_FOR_EXIT) */
+    /*     { */
+    /*     sleep(1); */
+    /*     if(taskmaster->programs.number_of_program > 0) */
+    /*         { */
+    /*         //TODO during wait display status of all the program or number of program still up? */
+    /*         snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, "Number of program still running (%u/%u)\n", taskmaster->programs.number_of_program, tmp_number_of_program); */
+    /*         print_command_output(taskmaster, buffer); */
+    /*         } */
+    /*     number_of_seconds++; */
+    /*     } */
+}
 
 void free_taskmaster(struct taskmaster *taskmaster)
     {
