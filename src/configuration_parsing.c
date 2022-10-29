@@ -350,13 +350,14 @@ static void init_thread(struct program_specification *pgm,
 
     for (uint32_t id = 0; id < pgm->number_of_process; id++) {
         thrd = &pgm->thrd[id];
+        pthread_mutex_init(&thrd->mtx_thrd, NULL);
+        pthread_mutex_init(&thrd->mtx_timer, NULL);
+        pthread_cond_init(&thrd->cond_timer, NULL);
+        sem_init(&thrd->sync, 0, 0);
         THRD_DATA_SET(rid, id);
         THRD_DATA_SET(restart_counter, pgm->start_retries);
         THRD_DATA_SET(pgm, pgm);
         THRD_DATA_SET(node, node);
-        sem_init(&thrd->sync, 0, 0);
-        pthread_mutex_init(&thrd->mtx_timer, NULL);
-        pthread_cond_init(&thrd->cond_timer, NULL);
     }
 }
 
@@ -693,6 +694,7 @@ void free_program_specification(struct program_specification *pgm) {
     free(pgm->str_start_command);
 
     sem_destroy(&pgm->thrd->sync);
+    pthread_mutex_destroy(&pgm->thrd->mtx_thrd);
     pthread_mutex_destroy(&pgm->thrd->mtx_timer);
     pthread_cond_destroy(&pgm->thrd->cond_timer);
 
@@ -1003,7 +1005,7 @@ uint8_t init_program_list(struct program_list *program_list)
         return (EXIT_FAILURE);
 
     program_list->global_status.global_status_struct_init = TRUE;
-    program_list->global_status.exit = FALSE;
+    program_list->exit = FALSE;
 
     program_list->tm_fd_log =
         open(TASKMASTER_LOGFILE, O_RDWR | O_APPEND | O_CREAT, 0664);

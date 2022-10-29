@@ -243,9 +243,11 @@ void stop_and_wait_all_the_program(struct taskmaster *taskmaster) {
     if (pthread_mutex_unlock(&(taskmaster->programs.mutex_program_linked_list)))
         return;
 
-    taskmaster->programs.global_status.exit = TRUE;
-    pthread_join(taskmaster->programs.master_thread, NULL);
+    taskmaster->programs.exit = TRUE;
+    if (pthread_join(taskmaster->programs.master_thread, NULL))
+        err_display("pthread_join() failed", __FILE__, __func__, __LINE__);
 
+    //TODO: check the purpose of the code below
     /* uint8_t buffer[OUTPUT_BUFFER_SIZE] = {0}; */
     /* uint32_t                      number_of_seconds; */
     /* uint32_t                      tmp_number_of_program; */

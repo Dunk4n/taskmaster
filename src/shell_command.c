@@ -726,7 +726,9 @@ uint8_t shell_command_exit_function(struct taskmaster *taskmaster, uint8_t **arg
         return (EXIT_FAILURE);
         }
 
-    stop_and_wait_all_the_program(taskmaster);
+    //TODO: check why this function is called. The issue is it is triggered
+    //2 times.
+    /* stop_and_wait_all_the_program(taskmaster); */
 
     taskmaster->global_status.global_status_exit = TRUE;
 

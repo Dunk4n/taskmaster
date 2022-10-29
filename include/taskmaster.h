@@ -188,25 +188,6 @@ struct program_specification
     struct program_specification *next;
 };
 
-/* runtime data relative to a thread. One launcher thread has one timer */
-struct thread_data {
-    struct program_list *node; /* pointer to the node */
-    struct program_specification *pgm; /* pointer to the related pgm data */
-    uint32_t rid;  /* rank id of current thread/proc. Index for an array */
-    pthread_t tid; /* thread id of current thread */
-    uint32_t pid;  /* pid of current process */
-
-    atomic_int restart_counter; /* how many time the process can be restarted */
-    struct timeval start_timestamp; /* time when process started */
-
-    sem_t sync; /* semaphore to synchronize timer & launcher thread at init */
-    pthread_mutex_t mtx_timer;
-    pthread_cond_t cond_timer; /* conditon variable to unlock timer */
-    pthread_t timer_id; /* thread id of start_timer thread */
-    atomic_bool restart; /* restart timer */
-    atomic_bool exit; /* exit timer */
-};
-
 /**
 * This structure holds the list of all the programs that will be executed
 * by taskmaster
@@ -216,7 +197,6 @@ struct program_list {
     struct {
         uint8_t global_status_struct_init  : 1; /* Structure is init */
         uint8_t global_status_conf_loaded  : 1; /* Configuration is loaded */
-        uint8_t exit  : 1; /* exit command to master thread */
     } global_status;
 
     pthread_t master_thread; /* id of master thread */
@@ -229,6 +209,8 @@ struct program_list {
 
     pthread_mutex_t mtx_log; /* mutex to lock-free logging from all threads */
     int32_t tm_fd_log; /* taskmaster FD log */
+
+    atomic_bool exit; /* exit command to master thread */
 };
 
 struct taskmaster
