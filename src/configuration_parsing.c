@@ -1,4 +1,5 @@
 #include "taskmaster.h"
+#include "tm_job_control.h"
 
 /**
 * This array correspond to all the possible attribut name for a program in the YAML config file
@@ -43,73 +44,38 @@ uint8_t (*const g_program_specification_field_load_function[NUMBER_OF_PROGRAM_SP
     };
 
 /**
-* This function set to the default value the structure program_specification
-*/
-static uint8_t initialize_pgm_config(struct program_specification *program)
-    {
-    if(program == NULL)
-        {
+ * This function set to the default value the structure program_specification
+ */
+static uint8_t initialize_pgm_config(struct program_specification *pgm) {
+    if (!pgm) return (EXIT_FAILURE);
+
+    bzero(pgm, sizeof(*pgm));
+
+    pgm->number_of_process = PROGRAM_DEFAULT_NUMBER_OF_PROCESS;
+    pgm->auto_start = PROGRAM_DEFAULT_AUTO_START;
+    pgm->e_auto_restart = PROGRAM_DEFAULT_AUTO_RESTART;
+    pgm->start_time = PROGRAM_DEFAULT_START_TIME;
+    pgm->start_retries = PROGRAM_DEFAULT_START_RETRIES;
+    pgm->stop_signal = PROGRAM_DEFAULT_STOP_SIGNAL;
+    pgm->stop_time = PROGRAM_DEFAULT_STOP_TIME;
+    pgm->umask = PROGRAM_DEFAULT_UMASk;
+
+    pgm->exit_codes = malloc(1 * sizeof(uint8_t));
+    if (pgm->exit_codes == NULL) return (EXIT_FAILURE);
+    pgm->exit_codes[0] = PROGRAM_DEFAULT_EXIT_CODE;
+    pgm->exit_codes_number = 1;
+
+    pgm->global_status.global_status_struct_init = TRUE;
+
+    if (pthread_mutex_init(&(pgm->mtx_pgm_state), NULL) != 0)
         return (EXIT_FAILURE);
-        }
-
-    memset(&program->global_status, 0, sizeof(program->global_status));
-    program->global_status.global_status_struct_init             = FALSE;
-    program->global_status.global_status_conf_loaded             = FALSE;
-    program->global_status.global_status_configuration_reloading = FALSE;
-
-    memset(&program->program_state, 0, sizeof(program->program_state));
-    program->program_state.started = FALSE;
-    program->program_state.need_to_restart = FALSE;
-    program->program_state.restarting = FALSE;
-    program->program_state.need_to_stop = FALSE;
-    program->program_state.stopping = FALSE;
-    program->program_state.need_to_start = FALSE;
-    program->program_state.starting = FALSE;
-    program->program_state.need_to_be_removed = FALSE;
-
-    program->str_name = NULL;
-    program->name_length = 0;
-    program->str_start_command = NULL;
-    program->number_of_process = PROGRAM_DEFAULT_NUMBER_OF_PROCESS;
-    program->auto_start = PROGRAM_DEFAULT_AUTO_START;
-    program->e_auto_restart = PROGRAM_DEFAULT_AUTO_RESTART;
-    program->exit_codes = NULL;
-    program->start_time = PROGRAM_DEFAULT_START_TIME;
-    program->start_retries = PROGRAM_DEFAULT_START_RETRIES;
-    program->stop_signal = PROGRAM_DEFAULT_STOP_SIGNAL;
-    program->stop_time = PROGRAM_DEFAULT_STOP_TIME;
-    program->str_stdout = NULL;
-    program->str_stderr = NULL;
-    program->env = NULL;
-    program->env_length = 0;
-    program->working_dir = NULL;
-    program->umask = PROGRAM_DEFAULT_UMASk;
-    program->restart_tmp_program = NULL;
-    program->next = NULL;
-
-    program->exit_codes_number = 0;
-
-    program->exit_codes = malloc(1 * sizeof(uint8_t));
-    if(program->exit_codes == NULL)
+    if (pthread_mutex_init(&(pgm->mtx_client_event), NULL) != 0)
         return (EXIT_FAILURE);
-    program->exit_codes[0] = PROGRAM_DEFAULT_EXIT_CODE;
-    program->exit_codes_number = 1;
-
-    program->global_status.global_status_struct_init = TRUE;
-
-    if(pthread_mutex_init(&(program->mtx_pgm_state), NULL) != 0)
-        return (EXIT_FAILURE);
-    if(pthread_mutex_init(&(program->mtx_client_event), NULL) != 0)
-        return (EXIT_FAILURE);
-    program->node = NULL;
-    program->nb_thread_alive = 0;
-    program->thrd = NULL;
-    program->argv = NULL;
-    program->log.out = UNINITIALIZED_FD;
-    program->log.err = UNINITIALIZED_FD;
+    pgm->log.out = UNINITIALIZED_FD;
+    pgm->log.err = UNINITIALIZED_FD;
 
     return (EXIT_SUCCESS);
-    }
+}
 
 /**
 * This function reset to the default value the structure program_specification without the name
@@ -301,159 +267,156 @@ static uint8_t check_required_attribute_in_program(struct program_specification 
     return (EXIT_SUCCESS);
     }
 
+/*
+ * If config says that process logs somewhere, init_fd_log() open and
+ * store these files
+ **/
+static uint8_t init_fd_log(struct program_specification *pgm) {
+    if (pgm->str_stdout) {
+        pgm->log.out = open(pgm->str_stdout, O_RDWR | O_CREAT | O_APPEND, 0755);
+        if (pgm->log.out == FD_ERR)
+            log_error("open str_stdout failed", __FILE__, __func__, __LINE__);
+    }
+    if (pgm->str_stderr) {
+        pgm->log.err = open(pgm->str_stderr, O_RDWR | O_CREAT | O_APPEND, 0755);
+        if (pgm->log.err == FD_ERR)
+            log_error("open str_stderr failed", __FILE__, __func__, __LINE__);
+    }
+    return EXIT_SUCCESS;
+}
+
 /**
-* This function parse all the attribute of one program in the YAML config file
-*/
-static uint8_t parse_config_program_attribute(yaml_parser_t *parser, struct program_specification *program, yaml_event_t *event)
-    {
-    if(parser == NULL)
-        {
-        return (EXIT_FAILURE);
-        }
+ * This function parse all the attribute of one program in the YAML config file
+ */
+static uint8_t parse_config_program_attribute(yaml_parser_t *parser,
+                                              struct program_specification *pgm,
+                                              yaml_event_t *event) {
+    uint8_t cnt = 0;
 
-    if(program == NULL)
-        {
-        return (EXIT_FAILURE);
-        }
+    if (!parser || !pgm || !event) return EXIT_FAILURE;
+    if (event->type != YAML_MAPPING_START_EVENT) return (EXIT_FAILURE);
 
-    if(event == NULL)
-        {
-        return (EXIT_FAILURE);
-        }
-
-    uint8_t cnt;
-
-    cnt = 0;
-
-    if(event->type != YAML_MAPPING_START_EVENT)
-        return (EXIT_FAILURE);
-
-    while(TRUE)
-        {
+    while (TRUE) {
         yaml_event_delete(event);
-        if(yaml_parser_parse(parser, event) != 1)
+        if (yaml_parser_parse(parser, event) != 1)
             log_error("The function to parse the YAML config file failed",
-                    __FILE__, __func__, __LINE__);
+                      __FILE__, __func__, __LINE__);
 
-        if(event->type == YAML_MAPPING_END_EVENT)
-            break;
+        if (event->type == YAML_MAPPING_END_EVENT) break;
 
-        if(event->type == YAML_SCALAR_EVENT && event->data.scalar.value != NULL && event->data.scalar.length != 0)
-            {
+        if (event->type == YAML_SCALAR_EVENT &&
+            event->data.scalar.value != NULL &&
+            event->data.scalar.length != 0) {
             cnt = 0;
-            while(cnt < NUMBER_OF_PROGRAM_SPECIFICATION_FIELD)
-                {
-                if(strcmp((char *) event->data.scalar.value, (char *) g_program_specification_field_name[cnt]) == 0)
-                    {
-                    if(g_program_specification_field_load_function[cnt](parser, program, event) != EXIT_SUCCESS)
+            while (cnt < NUMBER_OF_PROGRAM_SPECIFICATION_FIELD) {
+                if (strcmp((char *)event->data.scalar.value,
+                           (char *)g_program_specification_field_name[cnt]) ==
+                    0) {
+                    if (g_program_specification_field_load_function[cnt](
+                            parser, pgm, event) != EXIT_SUCCESS)
                         return (EXIT_FAILURE);
-
                     break;
-                    }
-
-                cnt++;
                 }
-
-            if(cnt >= NUMBER_OF_PROGRAM_SPECIFICATION_FIELD)
-                return (EXIT_FAILURE);
+                cnt++;
             }
-        else
+            if (cnt >= NUMBER_OF_PROGRAM_SPECIFICATION_FIELD)
+                return (EXIT_FAILURE);
+        } else
             return (EXIT_FAILURE);
-        }
-
-    if(check_required_attribute_in_program(program) != EXIT_SUCCESS)
-        return (EXIT_FAILURE);
-
-    if(program->auto_start == TRUE)
-        program->program_state.need_to_start = TRUE;
-
-    program->global_status.global_status_conf_loaded = TRUE;
-
-    return (EXIT_SUCCESS);
     }
 
+    if (check_required_attribute_in_program(pgm) != EXIT_SUCCESS)
+        return (EXIT_FAILURE);
+
+    if (pgm->auto_start == TRUE) pgm->program_state.need_to_start = TRUE;
+
+    pgm->global_status.global_status_conf_loaded = TRUE;
+
+    if (init_fd_log(pgm)) return EXIT_FAILURE;
+    pgm->thrd = calloc(pgm->number_of_process, sizeof(struct thread_data));
+    if (!pgm->thrd)
+        log_error("unable to calloc program->thrd", __FILE__, __func__,
+                  __LINE__);
+
+    return (EXIT_SUCCESS);
+}
+
+/*
+ * init each thread_data struct
+ **/
+static void init_thread(struct program_specification *pgm,
+                        struct program_list *node) {
+    struct thread_data *thrd;
+
+    for (uint32_t id = 0; id < pgm->number_of_process; id++) {
+        thrd = &pgm->thrd[id];
+        pthread_mutex_init(&thrd->mtx_thrd, NULL);
+        pthread_mutex_init(&thrd->mtx_timer, NULL);
+        pthread_cond_init(&thrd->cond_timer, NULL);
+        sem_init(&thrd->sync, 0, 0);
+        THRD_DATA_SET(rid, id);
+        THRD_DATA_SET(restart_counter, pgm->start_retries);
+        THRD_DATA_SET(pgm, pgm);
+        THRD_DATA_SET(node, node);
+    }
+}
+
 /**
-* This function parse one program in the YAML config file
-*/
-static uint8_t parse_config_one_program(yaml_parser_t *parser, struct program_list *program_list, yaml_event_t *event)
-    {
-    if(parser == NULL)
-        {
-        return (EXIT_FAILURE);
-        }
+ * This function parse one program in the YAML config file
+ */
+static uint8_t parse_config_one_program(yaml_parser_t *parser,
+                                        struct program_list *node,
+                                        yaml_event_t *event) {
+    struct program_specification *pgm = NULL;
+    uint32_t cnt = 0;
 
-    if(program_list == NULL)
-        {
-        return (EXIT_FAILURE);
-        }
-
-    if(event == NULL)
-        {
-        return (EXIT_FAILURE);
-        }
-
-    struct program_specification *actual_program_specification;
-    uint32_t                      cnt;
-
-    actual_program_specification = NULL;
-    cnt                          = 0;
-
-    if(event->type != YAML_SCALAR_EVENT)
+    if (!parser || !node || !event) return EXIT_FAILURE;
+    if (event->type != YAML_SCALAR_EVENT) return (EXIT_FAILURE);
+    if (event->data.scalar.value == NULL || event->data.scalar.length == 0)
         return (EXIT_FAILURE);
 
-    if(event->data.scalar.value == NULL || event->data.scalar.length == 0)
-        return (EXIT_FAILURE);
-
-    if(program_list->program_linked_list != NULL && program_list->number_of_program > 0)
-        {
-        actual_program_specification = program_list->program_linked_list;
+    if (node->program_linked_list != NULL && node->number_of_program > 0) {
+        pgm = node->program_linked_list;
         cnt = 0;
-        while(cnt < program_list->number_of_program && actual_program_specification != NULL)
-            {
-            if(actual_program_specification->global_status.global_status_struct_init == TRUE && actual_program_specification->name_length != 0 && actual_program_specification->str_name != NULL && strcmp((char *) event->data.scalar.value, (char *) actual_program_specification->str_name) == 0)
-                {
-                if(reset_program_default_value_without_name(actual_program_specification) != EXIT_SUCCESS)
+        while (cnt < node->number_of_program && pgm != NULL) {
+            if (pgm->global_status.global_status_struct_init == TRUE &&
+                pgm->name_length != 0 && pgm->str_name != NULL &&
+                strcmp((char *)event->data.scalar.value,
+                       (char *)pgm->str_name) == 0) {
+                if (reset_program_default_value_without_name(pgm) !=
+                    EXIT_SUCCESS)
                     return (EXIT_FAILURE);
-                actual_program_specification->node = program_list;
-                actual_program_specification->global_status.global_status_configuration_reloading = TRUE;
+                pgm->node = node;
+                pgm->global_status.global_status_configuration_reloading = TRUE;
                 break;
-                }
-
-            actual_program_specification = actual_program_specification->next;
-            cnt++;
             }
-
-        if(cnt >= program_list->number_of_program)
-            actual_program_specification = NULL;
+            pgm = pgm->next;
+            cnt++;
         }
+        if (cnt >= node->number_of_program) pgm = NULL;
+    }
 
-    if(actual_program_specification == NULL)
-        {
-        if(add_new_program(program_list, event->data.scalar.value, event->data.scalar.length) != EXIT_SUCCESS)
+    if (pgm == NULL) {
+        if (add_new_program(node, event->data.scalar.value,
+                            event->data.scalar.length) != EXIT_SUCCESS)
             return (EXIT_FAILURE);
-
-        if(program_list->last_program_linked_list == NULL)
-            return (EXIT_FAILURE);
-
-        actual_program_specification = program_list->last_program_linked_list;
-        }
+        if (node->last_program_linked_list == NULL) return (EXIT_FAILURE);
+        pgm = node->last_program_linked_list;
+    }
 
     yaml_event_delete(event);
-    if(yaml_parser_parse(parser, event) != 1)
-        log_error("The function to parse the YAML config file failed",
-                __FILE__, __func__, __LINE__);
+    if (yaml_parser_parse(parser, event) != 1)
+        log_error("The function to parse the YAML config file failed", __FILE__,
+                  __func__, __LINE__);
 
-    if(event->type != YAML_MAPPING_START_EVENT)
+    if (event->type != YAML_MAPPING_START_EVENT) return (EXIT_FAILURE);
+    if (parse_config_program_attribute(parser, pgm, event) != EXIT_SUCCESS)
         return (EXIT_FAILURE);
-
-    if(parse_config_program_attribute(parser, actual_program_specification, event) != EXIT_SUCCESS)
-        return (EXIT_FAILURE);
-
-    if(event->type != YAML_MAPPING_END_EVENT)
-        return (EXIT_FAILURE);
+    init_thread(pgm, node);
+    if (event->type != YAML_MAPPING_END_EVENT) return (EXIT_FAILURE);
 
     return (EXIT_SUCCESS);
-    }
+}
 
 /**
 * This function parse all the programs in the YAML config file
@@ -719,99 +682,63 @@ uint8_t parse_config_file(uint8_t *file_name, struct program_list *program_list)
     }
 
 /**
-* This function free the structure program_specification
-*/
-void free_program_specification(struct program_specification *program)
-    {
-    if(program == NULL)
-        {
-        return;
-        }
+ * This function free the structure program_specification
+ */
+void free_program_specification(struct program_specification *pgm) {
+    uint32_t cnt = 0;
 
-    if(program->global_status.global_status_struct_init == FALSE)
-        {
-        return;
-        }
+    if (!pgm) return;
+    if (pgm->global_status.global_status_struct_init == FALSE) return;
 
-    uint32_t cnt;
+    free(pgm->str_name);
+    free(pgm->str_start_command);
 
-    cnt = 0;
+    sem_destroy(&pgm->thrd->sync);
+    pthread_mutex_destroy(&pgm->thrd->mtx_thrd);
+    pthread_mutex_destroy(&pgm->thrd->mtx_timer);
+    pthread_cond_destroy(&pgm->thrd->cond_timer);
 
-    memset(&program->global_status, 0, sizeof(program->global_status));
-    memset(&program->program_state, 0, sizeof(program->program_state));
-
-    free(program->str_name);
-    program->str_name = NULL;
-    program->name_length = 0;
-
-    free(program->str_start_command);
-    program->str_start_command = NULL;
-
-    if (program->thrd) {
-        free(program->thrd);
-        program->thrd = NULL;
+    if (pgm->thrd) free(pgm->thrd);
+    if (pgm->argv) {
+        for (cnt = 0; pgm->argv[cnt]; cnt++) free(pgm->argv[cnt]);
+        free(pgm->argv);
     }
-
-    if (program->argv) {
-        for (cnt = 0; program->argv[cnt]; cnt++)
-            free(program->argv[cnt]);
-        free(program->argv);
-        program->argv = NULL;
-    }
-
-    program->number_of_process = PROGRAM_DEFAULT_NUMBER_OF_PROCESS;
-
-    program->auto_start = PROGRAM_DEFAULT_AUTO_START;
-    program->e_auto_restart = PROGRAM_DEFAULT_AUTO_RESTART;
-
-    free(program->exit_codes);
-    program->exit_codes = NULL;
-
-    program->start_time = PROGRAM_DEFAULT_START_TIME;
-    program->start_retries = PROGRAM_DEFAULT_START_RETRIES;
-    program->stop_signal = PROGRAM_DEFAULT_STOP_SIGNAL;
-    program->stop_time = PROGRAM_DEFAULT_STOP_TIME;
-    free(program->str_stdout);
-    program->str_stdout = NULL;
-    free(program->str_stderr);
-    program->str_stderr = NULL;
-
-    if(program->env != NULL)
-        {
+    free(pgm->exit_codes);
+    free(pgm->str_stdout);
+    free(pgm->str_stderr);
+    if (pgm->env != NULL) {
         cnt = 0;
-        while(cnt < program->env_length)
-            {
-            free(program->env[cnt]);
-            program->env[cnt] = NULL;
+        while (cnt < pgm->env_length) {
+            free(pgm->env[cnt]);
+            pgm->env[cnt] = NULL;
             cnt++;
-            }
-
-        free(program->env);
         }
-    program->env = NULL;
-    program->env_length = 0;
-
-    free(program->working_dir);
-    program->working_dir = NULL;
-
-    program->umask = PROGRAM_DEFAULT_UMASk;
-
-    if(program->restart_tmp_program != NULL)
-        {
-        free_program_specification(program->restart_tmp_program);
-        free(program->restart_tmp_program);
-        }
-    program->restart_tmp_program = NULL;
-    if (program->log.out != UNINITIALIZED_FD) close(program->log.out);
-    if (program->log.err != UNINITIALIZED_FD) close(program->log.err);
-
-    pthread_mutex_destroy(&(program->mtx_pgm_state));
-    pthread_mutex_destroy(&(program->mtx_client_event));
-
-    program->nb_thread_alive = 0;
-    program->node = NULL;
-    program->next = NULL;
+        free(pgm->env);
     }
+    free(pgm->working_dir);
+
+    if (pgm->restart_tmp_program != NULL) {
+        free_program_specification(pgm->restart_tmp_program);
+        free(pgm->restart_tmp_program);
+    }
+    if (pgm->log.out != UNINITIALIZED_FD) close(pgm->log.out);
+    if (pgm->log.err != UNINITIALIZED_FD) close(pgm->log.err);
+
+    pthread_mutex_destroy(&(pgm->mtx_pgm_state));
+    pthread_mutex_destroy(&(pgm->mtx_client_event));
+
+    bzero(pgm, sizeof(*pgm));
+    pgm->umask = PROGRAM_DEFAULT_UMASk;
+    pgm->number_of_process = PROGRAM_DEFAULT_NUMBER_OF_PROCESS;
+    pgm->auto_start = PROGRAM_DEFAULT_AUTO_START;
+    pgm->e_auto_restart = PROGRAM_DEFAULT_AUTO_RESTART;
+    pgm->start_time = PROGRAM_DEFAULT_START_TIME;
+    pgm->start_retries = PROGRAM_DEFAULT_START_RETRIES;
+    pgm->stop_signal = PROGRAM_DEFAULT_STOP_SIGNAL;
+    pgm->stop_time = PROGRAM_DEFAULT_STOP_TIME;
+    pgm->log.out = UNINITIALIZED_FD;
+    pgm->log.err = UNINITIALIZED_FD;
+}
 
 /**
 * This function free the linked list of structure program_specification in the structure program_list
@@ -1078,7 +1005,7 @@ uint8_t init_program_list(struct program_list *program_list)
         return (EXIT_FAILURE);
 
     program_list->global_status.global_status_struct_init = TRUE;
-    program_list->global_status.exit = FALSE;
+    program_list->exit = FALSE;
 
     program_list->tm_fd_log =
         open(TASKMASTER_LOGFILE, O_RDWR | O_APPEND | O_CREAT, 0664);

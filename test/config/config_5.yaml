@@ -10,7 +10,7 @@ programs:
       - 0
       - 2
     startretries: 3
-    starttime: 3
+    starttime: 2
     stopsignal: TERM
     stoptime: 3
     stdout: /tmp/alpha.stdout
@@ -18,4 +18,3 @@ programs:
     env:
       STARTED_BY: taskmaster
       ANSWER: 42
-    log: true

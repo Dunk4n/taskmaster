@@ -15,6 +15,7 @@
 # include <netdb.h>
 # include <errno.h>
 # include <stdatomic.h>
+# include <semaphore.h>
 # include <sys/socket.h>
 # include <sys/wait.h>
 # include <sys/stat.h>
@@ -176,15 +177,7 @@ struct program_specification
         int32_t err; /* fd log stderr */
     } log;
 
-    /* runtime data relative to a thread. */
-    struct thread_data {
-      uint32_t rid;  /* rank id of current thread/proc. Index for an array */
-      pthread_t tid; /* thread id of current thread */
-      uint32_t pid;  /* pid of current process */
-      /* how many time the process can be restarted */
-      atomic_int restart_counter;
-      struct timeval start_timestamp; /* time when process started */
-    } *thrd; /* array of thread_data. One thread per processus */
+    struct thread_data *thrd; /* dynamic array, one stuct per processus */
 
     atomic_uint nb_thread_alive; /* count how many launcher thread are alive*/
     struct timeval stop_timestamp; /* time when client asked to stop */
@@ -204,11 +197,9 @@ struct program_list {
     struct {
         uint8_t global_status_struct_init  : 1; /* Structure is init */
         uint8_t global_status_conf_loaded  : 1; /* Configuration is loaded */
-        uint8_t exit  : 1; /* exit command to master thread */
     } global_status;
 
-    /* id of main thread - it listen to client events */
-    pthread_t master_thread;
+    pthread_t master_thread; /* id of master thread */
     pthread_attr_t attr; /* pthread attribute initialized to detached */
 
     pthread_mutex_t               mutex_program_linked_list;
@@ -218,6 +209,8 @@ struct program_list {
 
     pthread_mutex_t mtx_log; /* mutex to lock-free logging from all threads */
     int32_t tm_fd_log; /* taskmaster FD log */
+
+    atomic_bool exit; /* exit command to master thread */
 };
 
 struct taskmaster
@@ -310,16 +303,6 @@ typedef uint8_t (*callback)(struct program_specification *,
 typedef struct client_handler {
     callback cb;
 } s_client_handler;
-
-/* used to keep in memory only thread_data struct we want to compare 'later' */
-typedef struct time_control {
-    struct program_specification *pgm;
-    struct timeval start;
-    pthread_t thrd_id;
-    uint32_t pid;
-    uint32_t rid;
-    uint8_t exit;
-} s_time_control;
 
 uint8_t tm_job_control(struct program_list *taskmaster);
 
