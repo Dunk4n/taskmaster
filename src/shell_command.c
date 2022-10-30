@@ -727,10 +727,11 @@ uint8_t shell_command_exit_function(struct taskmaster *taskmaster, uint8_t **arg
         }
 
     //TODO: check why this function is called. The issue is it is triggered
-    //2 times.
+    //2 times an other time in free_taskmaster().
     /* stop_and_wait_all_the_program(taskmaster); */
 
     taskmaster->global_status.global_status_exit = TRUE;
+    taskmaster->programs.exit = TRUE;
 
     if(taskmaster->global_status.global_status_start_as_daemon == TRUE)
         {
