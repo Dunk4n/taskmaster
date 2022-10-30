@@ -30,15 +30,15 @@ static bool pgm_state_getter(struct program_specification *pgm,
     return b;
 }
 
-static bool pgm_state_getter_t(struct thread_data *thrd,
-                               enum pgm_states state) {
-    bool b;
+/* static bool pgm_state_getter_t(struct thread_data *thrd, */
+/*                                enum pgm_states state) { */
+/*     bool b; */
 
-    pthread_mutex_lock(&thrd->pgm->mtx_pgm_state);
-    b = *(uint8_t *)(&thrd->pgm->program_state) & state;
-    pthread_mutex_unlock(&thrd->pgm->mtx_pgm_state);
-    return b;
-}
+/*     pthread_mutex_lock(&thrd->pgm->mtx_pgm_state); */
+/*     b = *(uint8_t *)(&thrd->pgm->program_state) & state; */
+/*     pthread_mutex_unlock(&thrd->pgm->mtx_pgm_state); */
+/*     return b; */
+/* } */
 
 /* time diff in s */
 static uint32_t timediff(struct timeval *time1) {
@@ -455,12 +455,13 @@ static uint8_t set_autostart(struct program_list *node) {
 }
 
 static void exit_job_control(struct program_list *node) {
-    struct program_specification *pgm, *tmp;
+    struct program_specification *pgm;
     uint32_t nb = 0;
 
     TM_LOG2("exit", "...", NULL);
     for (pgm = node->program_linked_list; pgm; pgm = pgm->next)
         nb += do_stop(pgm, node);
+    (void)nb;
     for (int alive = 1; alive;) {
         alive = 0;
         for (pgm = node->program_linked_list; pgm; pgm = pgm->next)
