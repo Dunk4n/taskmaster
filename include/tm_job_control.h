@@ -13,8 +13,9 @@
 #define START_SUPERVISOR_RATE (4000)
 #define STOP_SUPERVISOR_RATE (4000)
 #define EXIT_MASTER_RATE (2000)
+#define KILL_TIME_LIMIT (1000000)
 
-typedef enum client_event : uint8_t {
+typedef enum client_event {
     CLIENT_NOTHING = 0,
     CLIENT_START,
     CLIENT_RESTART,
@@ -38,15 +39,25 @@ typedef struct timeval tm_timeval_t;
 /* runtime data relative to a thread. One launcher thread has one timer */
 struct thread_data {
     pthread_mutex_t mtx_thrd;
+
     struct program_list *node;         /* pointer to the node */
     struct program_specification *pgm; /* pointer to the related pgm data */
+
     uint32_t rid;  /* rank id of current thread/proc. Index for an array */
     pthread_t tid; /* thread id of current thread */
     uint32_t pid;  /* pid of current process */
-
     int32_t restart_counter; /* how many time the process can be restarted */
     tm_timeval_t start_timestamp; /* time when process started */
 
+    /*
+     * This variable must be set with its macros
+     * bits are ordered as following: eeeessss
+     * states: stopped - started - stopping - starting.
+     * events: restarting.
+     */
+    atomic_uchar proc_info;
+
+    /*    timer    */
     sem_t sync; /* semaphore to synchronize timer & launcher thread at init */
     pthread_mutex_t mtx_timer;
     pthread_cond_t cond_timer; /* conditon variable to unlock timer */
@@ -55,7 +66,50 @@ struct thread_data {
     bool exit;                 /* exit timer */
 };
 
-/* exit & debug macros */
+/* PROC_INFO STATES */
+
+#define PROC_ST_STOPPED (0x00) /* 0000 */
+#define PROC_ST_STARTED (0x01) /* 0001 */
+/* When stopping, proc is also started - 0011 */
+#define PROC_ST_STOPPING (0x03)
+/* When starting, proc is also stopped - 0100 */
+#define PROC_ST_STARTING (0x04)
+
+/* PROC_INFO EVENTS */
+
+#define PROC_EV_NOEVENT (0x0) /* when set by macro: 0000 0000 */
+#define PROC_EV_RESTARTING (0x1) /* when set by macro: 0001 0000 */
+
+/* MASKS */
+
+/* proc is active if is either started, starting or stopping - 0111 */
+#define PROC_ACTIVE (0x07)
+#define IS_PROC_ACTIVE(ptr) (((ptr)->proc_info & PROC_ACTIVE) > 0)
+
+/* PROC_INFO SETTERS & GETTERS */
+
+/*
+ * if proc state value to set is starting, it overides restarting event to 0,
+ * otherwise not
+ **/
+#define SET_PROC_STATE(value)                                               \
+    do {                                                                    \
+        thrd->proc_info = (((thrd->proc_info & 0xf0) + ((value)&0x0f)) *    \
+                           ((value) != PROC_ST_STARTING)) +                 \
+                          (((value)&0x0f) * ((value) == PROC_ST_STARTING)); \
+    } while (0)
+
+/* set event to proc_info without overriding states */
+#define SET_PROC_EVENT(value)                                        \
+    do {                                                             \
+        thrd->proc_info = ((value) << 4) + (thrd->proc_info & 0x0f); \
+    } while (0)
+
+#define GET_PROC_STATE (thrd->proc_info & 0x0f)
+#define GET_PROC_EVENT (thrd->proc_info >> 4)
+
+/* EXIT & DEBUG MACROS */
+
 #ifdef DEVELOPEMENT
 #define debug_thrd()                                                        \
     do {                                                                    \
@@ -211,13 +265,17 @@ struct thread_data {
            THRD_DATA_GET(pthread_t, tid),                                     \
            THRD_DATA_GET(int32_t, restart_counter), child_ret);
 
-#define TM_STOP_LOG(status)                                               \
-    TM_LOG2("stop supervisor", "[%s] - stop_time[%d sec] • [" status "]", \
-            PGM_SPEC_GET(str_name), PGM_SPEC_GET(stop_time));
+#define TM_STOP_LOG(status)                                                    \
+    TM_LOG("stop timer",                                                       \
+           "[%s pid[%d]] - tid[%lu] - rank[%d] - stop_time[%d sec] • [" status \
+           "]",                                                                \
+           PGM_SPEC_GET_T(str_name), THRD_DATA_GET(uint32_t, pid),             \
+           THRD_DATA_GET(pthread_t, tid), THRD_DATA_GET(uint32_t, rid),        \
+           PGM_SPEC_GET_T(stop_time));
 
 #define TM_START_LOG(status)                                                 \
     TM_LOG(                                                                  \
-        "start supervisor",                                                  \
+        "start timer",                                                       \
         "[%s pid[%d]] - tid[%lu] - rank[%d] - start_time[%d sec] • [" status \
         "]",                                                                 \
         PGM_SPEC_GET_T(str_name), pid, THRD_DATA_GET(pthread_t, tid),        \
