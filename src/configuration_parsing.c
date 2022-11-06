@@ -351,9 +351,13 @@ static void init_thread(struct program_specification *pgm,
     for (uint32_t id = 0; id < pgm->number_of_process; id++) {
         thrd = &pgm->thrd[id];
         pthread_mutex_init(&thrd->mtx_thrd, NULL);
+        pthread_barrier_init(&thrd->sync_barrier, NULL, 2);
+        pthread_mutex_init(&thrd->mtx_wakeup, NULL);
+        pthread_cond_init(&thrd->cond_wakeup, NULL);
         pthread_mutex_init(&thrd->mtx_timer, NULL);
         pthread_cond_init(&thrd->cond_timer, NULL);
-        sem_init(&thrd->sync, 0, 0);
+        sem_init(&thrd->sync_init, 0, 0);
+        sem_init(&thrd->sync_timer, 0, 0);
         THRD_DATA_SET(rid, id);
         THRD_DATA_SET(restart_counter, pgm->start_retries);
         THRD_DATA_SET(pgm, pgm);
@@ -693,10 +697,14 @@ void free_program_specification(struct program_specification *pgm) {
     free(pgm->str_name);
     free(pgm->str_start_command);
 
-    sem_destroy(&pgm->thrd->sync);
+    sem_destroy(&pgm->thrd->sync_init);
+    sem_destroy(&pgm->thrd->sync_timer);
+    pthread_barrier_destroy(&pgm->thrd->sync_barrier);
     pthread_mutex_destroy(&pgm->thrd->mtx_thrd);
     pthread_mutex_destroy(&pgm->thrd->mtx_timer);
     pthread_cond_destroy(&pgm->thrd->cond_timer);
+    pthread_mutex_destroy(&pgm->thrd->mtx_wakeup);
+    pthread_cond_destroy(&pgm->thrd->cond_wakeup);
 
     if (pgm->thrd) free(pgm->thrd);
     if (pgm->argv) {

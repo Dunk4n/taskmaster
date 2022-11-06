@@ -39,6 +39,9 @@ typedef struct timeval tm_timeval_t;
 /* runtime data relative to a thread. One launcher thread has one timer */
 struct thread_data {
     pthread_mutex_t mtx_thrd;
+    sem_t sync_init; /* synchronization between thread creation & auto_start */
+    /* constant synchronization between timer & launcher */
+    pthread_barrier_t sync_barrier;
 
     struct program_list *node;         /* pointer to the node */
     struct program_specification *pgm; /* pointer to the related pgm data */
@@ -49,24 +52,29 @@ struct thread_data {
     int32_t restart_counter; /* how many time the process can be restarted */
     tm_timeval_t start_timestamp; /* time when process started */
 
+    pthread_mutex_t mtx_wakeup;
+    pthread_cond_t
+        cond_wakeup; /* conditon variable to signal thread to start */
+
     /*
      * This variable must be set with its macros
      * bits are ordered as following: eeeessss
      * states: stopped - started - stopping - starting.
      * events: restarting.
      */
-    atomic_uchar proc_info;
+    atomic_uchar info;
 
     /*    timer    */
-    sem_t sync; /* semaphore to synchronize timer & launcher thread at init */
+
+    /* semaphore to synchronize timer & launcher thread at init */
+    sem_t sync_timer;
     pthread_mutex_t mtx_timer;
     pthread_cond_t cond_timer; /* conditon variable to unlock timer */
     pthread_t timer_id;        /* thread id of start_timer thread */
-    bool restart;              /* restart timer */
-    bool exit;                 /* exit timer */
+    bool proc_restart;         /* restart timer */
 };
 
-/* PROC_INFO STATES */
+/* PROCESSUS STATES */
 
 #define PROC_ST_STOPPED (0x00) /* 0000 */
 #define PROC_ST_STARTED (0x01) /* 0001 */
@@ -75,38 +83,40 @@ struct thread_data {
 /* When starting, proc is also stopped - 0100 */
 #define PROC_ST_STARTING (0x04)
 
-/* PROC_INFO EVENTS */
+/* THREAD EVENTS */
 
-#define PROC_EV_NOEVENT (0x0) /* when set by macro: 0000 0000 */
-#define PROC_EV_RESTARTING (0x1) /* when set by macro: 0001 0000 */
+#define THRD_EV_NOEVENT (0x0) /* default. */
+#define THRD_EV_STOP (0x1)    /* thread gets idle */
+#define THRD_EV_RESTART (0x2) /* thread gets active */
+#define THRD_EV_EXIT (0x3)    /* thread gets exited */
 
 /* MASKS */
 
 /* proc is active if is either started, starting or stopping - 0111 */
 #define PROC_ACTIVE (0x07)
-#define IS_PROC_ACTIVE(ptr) (((ptr)->proc_info & PROC_ACTIVE) > 0)
+#define IS_PROC_ACTIVE(ptr) (((ptr)->info & PROC_ACTIVE) > 0)
 
-/* PROC_INFO SETTERS & GETTERS */
+/* INFO SETTERS & GETTERS */
 
 /*
  * if proc state value to set is starting, it overides restarting event to 0,
  * otherwise not
  **/
-#define SET_PROC_STATE(value)                                               \
-    do {                                                                    \
-        thrd->proc_info = (((thrd->proc_info & 0xf0) + ((value)&0x0f)) *    \
-                           ((value) != PROC_ST_STARTING)) +                 \
-                          (((value)&0x0f) * ((value) == PROC_ST_STARTING)); \
+#define SET_PROC_STATE(value)                                          \
+    do {                                                               \
+        thrd->info = (((thrd->info & 0xf0) + ((value)&0x0f)) *         \
+                      ((value) != PROC_ST_STARTING)) +                 \
+                     (((value)&0x0f) * ((value) == PROC_ST_STARTING)); \
+    } while (0)
+#define GET_PROC_STATE (thrd->info & 0x0f)
+
+/* set event to info without overriding states */
+#define SET_THRD_EVENT(value)                              \
+    do {                                                   \
+        thrd->info = ((value) << 4) + (thrd->info & 0x0f); \
     } while (0)
 
-/* set event to proc_info without overriding states */
-#define SET_PROC_EVENT(value)                                        \
-    do {                                                             \
-        thrd->proc_info = ((value) << 4) + (thrd->proc_info & 0x0f); \
-    } while (0)
-
-#define GET_PROC_STATE (thrd->proc_info & 0x0f)
-#define GET_PROC_EVENT (thrd->proc_info >> 4)
+#define GET_THRD_EVENT (thrd->info >> 4)
 
 /* EXIT & DEBUG MACROS */
 
