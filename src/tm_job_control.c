@@ -54,7 +54,6 @@ static uint32_t timediff(struct timeval *time1) {
 static void exit_thread(struct thread_data *thrd) {
     if (!thrd) return;
     THRD_DATA_SET(pid, 0);
-    THRD_DATA_SET(tid, 0);
     THRD_DATA_SET(proc_restart, FALSE);
     thrd->pgm->nb_thread_alive--;
     if (PGM_SPEC_GET_T(nb_thread_alive) == 0) PGM_STATE_SET_T(started, FALSE);
@@ -157,7 +156,8 @@ static void thread_data_update(struct thread_data *thrd, pid_t pid) {
 }
 
 static void *exit_launcher_thread(struct thread_data *thrd) {
-    pthread_join(THRD_DATA_GET(pthread_t, timer_id), NULL);
+    if (pthread_join(THRD_DATA_GET(pthread_t, timer_id), NULL))
+        err_display("pthread_join() failed", __FILE__, __func__, __LINE__);
     exit_thread(thrd);
     TM_THRD_LOG("EXITED");
     return NULL;
@@ -215,41 +215,45 @@ idle_timer:
     if (!init) {
         init = TRUE;
         /* sync thread_pool creation with start*/
-        sem_post(&thrd->sync_init);
+        sem_post(&thrd->sync);
     }
     /* Waits for MT to signal a start */
+    printf("[%d] - [%s] ", thrd->rid, thrd->pgm->str_name);
     printf("timer - before wakeup\n");
     fflush(stdout);
     pthread_cond_wait(&thrd->cond_wakeup, &thrd->mtx_wakeup);
+    printf("[%d] - [%s] ", thrd->rid, thrd->pgm->str_name);
     printf("timer - after wakeup\n");
     fflush(stdout);
     pthread_mutex_unlock(&thrd->mtx_wakeup);
     if (GET_THRD_EVENT == THRD_EV_EXIT) return NULL;
 start_timer:
+    printf("[%d] - [%s] ", thrd->rid, thrd->pgm->str_name);
     printf("timer - before sem_post\n");
     fflush(stdout);
     pthread_barrier_wait(&thrd->sync_barrier);
+    pthread_mutex_lock(&thrd->mtx_timer);
     SET_PROC_STATE(PROC_ST_STARTING); /* Careful: this clears thread_event */
-    sem_post(&thrd->sync_timer); /* sync launcher thread with timer at init */
+    sem_post(&thrd->sync); /* sync launcher thread with timer at init */
+    printf("[%d] - [%s] ", thrd->rid, thrd->pgm->str_name);
     printf("timer - after sem_post\n");
     fflush(stdout);
 wait:
-    pthread_mutex_lock(&thrd->mtx_timer);
     if (GET_THRD_EVENT) {
         stop_time(thrd);
-        pthread_mutex_unlock(&thrd->mtx_timer);
         goto check_ret;
     }
 
+    printf("[%d] - [%s] ", thrd->rid, thrd->pgm->str_name);
     printf("timer - before cond_wait\n");
     fflush(stdout);
     pthread_cond_wait(&thrd->cond_timer, &thrd->mtx_timer);
+    printf("[%d] - [%s] ", thrd->rid, thrd->pgm->str_name);
     printf("timer - after cond_wait\n");
     fflush(stdout);
 
     if (GET_THRD_EVENT) {
         stop_time(thrd);
-        pthread_mutex_unlock(&thrd->mtx_timer);
         goto check_ret;
     }
     THRD_DATA_SET(proc_restart, FALSE);
@@ -262,33 +266,36 @@ wait:
         if (GET_THRD_EVENT) {
             TM_START_LOG("EXITED BEFORE TIME TO LAUNCH");
             stop_time(thrd);
-            pthread_mutex_unlock(&thrd->mtx_timer);
             goto check_ret;
         }
         if (THRD_DATA_GET(bool, proc_restart)) {
             TM_START_LOG("DIDN'T LAUNCHED CORRECTLY");
-            pthread_mutex_unlock(&thrd->mtx_timer);
             goto wait;
         }
         usleep(START_SUPERVISOR_RATE);
     }
     SET_PROC_STATE(PROC_ST_STARTED);
     TM_START_LOG("LAUNCHED CORRECTLY");
-    pthread_mutex_unlock(&thrd->mtx_timer);
     goto wait;
 
 check_ret:
     if (GET_THRD_EVENT == THRD_EV_NOEVENT || GET_THRD_EVENT == THRD_EV_STOP) {
+        printf("[%d] - [%s] ", thrd->rid, thrd->pgm->str_name);
         printf("timer - goto idle_timer\n");
         fflush(stdout);
+        pthread_mutex_unlock(&thrd->mtx_timer);
         goto idle_timer;
     } else if (GET_THRD_EVENT == THRD_EV_RESTART) {
+        printf("[%d] - [%s] ", thrd->rid, thrd->pgm->str_name);
         printf("timer - goto start_timer\n");
         fflush(stdout);
+        pthread_mutex_unlock(&thrd->mtx_timer);
         goto start_timer;
     }
-    /* security if ever timer exit while LT believes to restart and wait sync */
-    sem_post(&thrd->sync_timer);
+    pthread_mutex_unlock(&thrd->mtx_timer);
+    printf("[%d] - [%s] ", thrd->rid, thrd->pgm->str_name);
+    printf("timer - exit - after sem_post\n");
+    fflush(stdout);
     return NULL;
 }
 
@@ -343,21 +350,25 @@ idle_launcher:
     if (!init) {
         init = TRUE;
         /* sync thread_pool creation with start*/
-        sem_post(&thrd->sync_init);
+        sem_post(&thrd->sync);
     }
     /* Waits for MT to signal a start */
+    printf("[%d] - [%s] ", thrd->rid, thrd->pgm->str_name);
     printf("launcher - before wakeup\n");
     fflush(stdout);
     pthread_cond_wait(&thrd->cond_wakeup, &thrd->mtx_wakeup);
+    printf("[%d] - [%s] ", thrd->rid, thrd->pgm->str_name);
     printf("launcher - after wakeup\n");
     fflush(stdout);
     pthread_mutex_unlock(&thrd->mtx_wakeup);
     if (GET_THRD_EVENT == THRD_EV_EXIT) return exit_launcher_thread(thrd);
 start_launcher:
+    printf("[%d] - [%s] ", thrd->rid, thrd->pgm->str_name);
     printf("launcher - before sem_wait\n");
     fflush(stdout);
     pthread_barrier_wait(&thrd->sync_barrier);
-    sem_wait(&thrd->sync_timer);
+    sem_wait(&thrd->sync);
+    printf("[%d] - [%s] ", thrd->rid, thrd->pgm->str_name);
     printf("launcher - after sem_wait\n");
     fflush(stdout);
     /* thrd_event may have changed in the meantime so we need to check it */
@@ -366,26 +377,31 @@ start_launcher:
     run_process(thrd);
 
     pthread_mutex_lock(&thrd->mtx_timer); /* wait stop timer to finish */
-    if (GET_THRD_EVENT == THRD_EV_NOEVENT || GET_THRD_EVENT == THRD_EV_STOP) {
-        printf("launcher - noevent/thrd_ev_stop\n");
+    if (GET_THRD_EVENT == THRD_EV_NOEVENT) {
+        printf("[%d] - [%s] ", thrd->rid, thrd->pgm->str_name);
+        printf("launcher - noevent\n");
+        fflush(stdout);
+        SET_THRD_EVENT(THRD_EV_STOP);
+        pthread_cond_signal(&thrd->cond_timer);
+        pthread_mutex_unlock(&thrd->mtx_timer);
+        goto idle_launcher;
+    } else if (GET_THRD_EVENT == THRD_EV_STOP) {
+        printf("[%d] - [%s] ", thrd->rid, thrd->pgm->str_name);
+        printf("launcher - thrd_ev_stop\n");
         fflush(stdout);
         pthread_mutex_unlock(&thrd->mtx_timer);
-        printf("launcher - unlocked\n");
-        fflush(stdout);
         goto idle_launcher;
     } else if (GET_THRD_EVENT == THRD_EV_RESTART) {
+        printf("[%d] - [%s] ", thrd->rid, thrd->pgm->str_name);
         printf("launcher - ev_restart\n");
         fflush(stdout);
         pthread_mutex_unlock(&thrd->mtx_timer);
-        printf("launcher - unlocked\n");
-        fflush(stdout);
         goto start_launcher;
     } else { /* PROC_EV_EXITING */
+        printf("[%d] - [%s] ", thrd->rid, thrd->pgm->str_name);
         printf("launcher - ev_exit\n");
         fflush(stdout);
         pthread_mutex_unlock(&thrd->mtx_timer);
-        printf("launcher - unlocked\n");
-        fflush(stdout);
         return exit_launcher_thread(thrd);
     }
 }
@@ -490,9 +506,6 @@ static void init_handlers(s_client_handler *handler) {
     handler[CLIENT_STOP].cb = do_stop;
 }
 
-/*
- * Set need_to_start flag to programs which have their auto_start flag to true
- **/
 static uint8_t set_autostart(struct program_specification *pgm,
                              struct program_list *node) {
     for (uint32_t i = 0; i < node->number_of_program && pgm; i++) {
@@ -503,29 +516,35 @@ static uint8_t set_autostart(struct program_specification *pgm,
 }
 
 /* exit LT and wait them. */
-static void exit_job_control(struct program_specification *pgm,
+static void exit_job_control(struct program_specification *pgm_head,
                              struct program_list *node) {
     struct thread_data *thrd;
     struct timeval stop;
 
     TM_LOG2("exit", "...", NULL);
-    for (struct program_specification *pgm_cp = pgm; pgm_cp;
-         pgm_cp = pgm_cp->next) {
+    for (struct program_specification *pgm = pgm_head; pgm; pgm = pgm->next) {
         gettimeofday(&stop, NULL);
         PGM_SPEC_SET(stop_timestamp, stop);
         for (uint32_t id = 0; id < pgm->number_of_process; id++) {
             thrd = &pgm->thrd[id];
             SET_THRD_EVENT(THRD_EV_EXIT);
             stop_signal(thrd, pgm->stop_signal);
+
+            if (THRD_DATA_GET(pthread_t, tid) && !IS_PROC_ACTIVE(thrd)) {
+                pthread_mutex_lock(&thrd->mtx_wakeup);
+                pthread_cond_broadcast(&thrd->cond_wakeup);
+                pthread_mutex_unlock(&thrd->mtx_wakeup);
+            }
         }
     }
-    for (struct program_specification *pgm_cp = pgm; pgm_cp;
-         pgm_cp = pgm_cp->next) {
+    for (struct program_specification *pgm = pgm_head; pgm; pgm = pgm->next) {
         for (uint32_t id = 0; id < pgm->number_of_process; id++) {
             thrd = &pgm->thrd[id];
-            if (pthread_join(THRD_DATA_GET(pthread_t, tid), NULL))
+            if (pthread_join(THRD_DATA_GET(pthread_t, tid), NULL)) {
+                perror("oops");
                 err_display("pthread_join() failed", __FILE__, __func__,
                             __LINE__);
+            }
         }
     }
 }
@@ -533,21 +552,17 @@ static void exit_job_control(struct program_specification *pgm,
 static uint8_t create_thread_pool(struct program_specification *pgm,
                                   struct program_list *node) {
     struct thread_data *thrd;
-    int semval;
 
     for (uint32_t i = 0; i < node->number_of_program && pgm; i++) {
         for (uint32_t id = 0; id < pgm->number_of_process; id++) {
             thrd = &pgm->thrd[id];
-            semval = 0;
             if (pthread_create(&thrd->tid, NULL, routine_launcher_thrd, thrd))
                 log_error("failed to create launcher thread", __FILE__,
                           __func__, __LINE__);
 
             /* waits that LT & its timer are idle and waiting for start signal*/
-            while (semval != 2) {
-                sem_getvalue(&thrd->sync_init, &semval);
-                usleep(2000);
-            }
+            sem_wait(&thrd->sync);
+            sem_wait(&thrd->sync);
         }
         pgm = pgm->next;
     }

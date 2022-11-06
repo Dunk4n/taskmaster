@@ -356,8 +356,7 @@ static void init_thread(struct program_specification *pgm,
         pthread_cond_init(&thrd->cond_wakeup, NULL);
         pthread_mutex_init(&thrd->mtx_timer, NULL);
         pthread_cond_init(&thrd->cond_timer, NULL);
-        sem_init(&thrd->sync_init, 0, 0);
-        sem_init(&thrd->sync_timer, 0, 0);
+        sem_init(&thrd->sync, 0, 0);
         THRD_DATA_SET(rid, id);
         THRD_DATA_SET(restart_counter, pgm->start_retries);
         THRD_DATA_SET(pgm, pgm);
@@ -697,8 +696,7 @@ void free_program_specification(struct program_specification *pgm) {
     free(pgm->str_name);
     free(pgm->str_start_command);
 
-    sem_destroy(&pgm->thrd->sync_init);
-    sem_destroy(&pgm->thrd->sync_timer);
+    sem_destroy(&pgm->thrd->sync);
     pthread_barrier_destroy(&pgm->thrd->sync_barrier);
     pthread_mutex_destroy(&pgm->thrd->mtx_thrd);
     pthread_mutex_destroy(&pgm->thrd->mtx_timer);

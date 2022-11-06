@@ -39,7 +39,6 @@ typedef struct timeval tm_timeval_t;
 /* runtime data relative to a thread. One launcher thread has one timer */
 struct thread_data {
     pthread_mutex_t mtx_thrd;
-    sem_t sync_init; /* synchronization between thread creation & auto_start */
     /* constant synchronization between timer & launcher */
     pthread_barrier_t sync_barrier;
 
@@ -67,7 +66,7 @@ struct thread_data {
     /*    timer    */
 
     /* semaphore to synchronize timer & launcher thread at init */
-    sem_t sync_timer;
+    sem_t sync;
     pthread_mutex_t mtx_timer;
     pthread_cond_t cond_timer; /* conditon variable to unlock timer */
     pthread_t timer_id;        /* thread id of start_timer thread */
