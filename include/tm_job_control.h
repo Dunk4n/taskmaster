@@ -15,14 +15,6 @@
 #define EXIT_MASTER_RATE (2000)
 #define KILL_TIME_LIMIT (1000000)
 
-typedef enum client_event {
-    CLIENT_NOTHING = 0,
-    CLIENT_START,
-    CLIENT_RESTART,
-    CLIENT_STOP,
-    CLIENT_MAX_EVENT
-} e_client_event;
-
 enum pgm_states {
     started = 1 << 0,
     need_to_restart = 1 << 1,

@@ -20,23 +20,13 @@ THRD_DATA_GET_IMPLEMENTATION
 
 /* getters */
 
-static bool pgm_state_getter(struct program_specification *pgm,
-                             enum pgm_states state) {
-    bool b;
-
-    pthread_mutex_lock(&pgm->mtx_pgm_state);
-    b = *(uint8_t *)(&pgm->program_state) & state;
-    pthread_mutex_unlock(&pgm->mtx_pgm_state);
-    return b;
-}
-
-/* static bool pgm_state_getter_t(struct thread_data *thrd, */
-/*                                enum pgm_states state) { */
+/* static bool pgm_state_getter(struct program_specification *pgm, */
+/*                              enum pgm_states state) { */
 /*     bool b; */
 
-/*     pthread_mutex_lock(&thrd->pgm->mtx_pgm_state); */
-/*     b = *(uint8_t *)(&thrd->pgm->program_state) & state; */
-/*     pthread_mutex_unlock(&thrd->pgm->mtx_pgm_state); */
+/*     pthread_mutex_lock(&pgm->mtx_pgm_state); */
+/*     b = *(uint8_t *)(&pgm->program_state) & state; */
+/*     pthread_mutex_unlock(&pgm->mtx_pgm_state); */
 /*     return b; */
 /* } */
 
@@ -448,13 +438,6 @@ static uint8_t do_restart(struct program_specification *pgm,
     return EXIT_SUCCESS;
 }
 
-static void init_handlers(s_client_handler *handler) {
-    handler[CLIENT_NOTHING].cb = do_nothing;
-    handler[CLIENT_START].cb = do_start;
-    handler[CLIENT_RESTART].cb = do_restart;
-    handler[CLIENT_STOP].cb = do_stop;
-}
-
 static uint8_t set_autostart(struct program_specification *pgm,
                              struct program_list *node) {
     for (uint32_t i = 0; i < node->number_of_program && pgm; i++) {
@@ -465,11 +448,12 @@ static uint8_t set_autostart(struct program_specification *pgm,
 }
 
 /* exit LT and wait them. */
-static void exit_job_control(struct program_specification *pgm_head,
-                             struct program_list *node) {
+static uint8_t do_exit(struct program_specification *pgm_head,
+                       struct program_list *node) {
     struct thread_data *thrd;
     struct timeval stop;
 
+    node->exit = TRUE;
     TM_LOG2("exit", "...", NULL);
     for (struct program_specification *pgm = pgm_head; pgm; pgm = pgm->next) {
         gettimeofday(&stop, NULL);
@@ -496,6 +480,7 @@ static void exit_job_control(struct program_specification *pgm_head,
             }
         }
     }
+    return EXIT_SUCCESS;
 }
 
 static uint8_t create_thread_pool(struct program_specification *pgm,
@@ -518,6 +503,11 @@ static uint8_t create_thread_pool(struct program_specification *pgm,
     return EXIT_SUCCESS;
 }
 
+uint8_t (*execute_event[CLIENT_MAX_EVENT])(struct program_specification *,
+                                           struct program_list *) = {
+    do_nothing, do_start, do_restart, do_stop, do_exit,
+};
+
 /*
  * The master thread listen the client events - start, stop, restart - and
  * handle them.
@@ -529,24 +519,23 @@ static uint8_t create_thread_pool(struct program_specification *pgm,
 static void *routine_master_thrd(void *arg) {
     struct program_list *node = arg;
     struct program_specification *pgm = node->program_linked_list;
-    s_client_handler handler[CLIENT_MAX_EVENT];
-    uint8_t client_event;
+    struct s_event client_ev;
 
-    init_handlers(handler);
     create_thread_pool(pgm, node);
     set_autostart(pgm, node);
+
     while (node->exit == FALSE) {
-        pgm = node->program_linked_list;
-        while (pgm) {
-            client_event = ((PGM_STATE_GET(need_to_restart) * CLIENT_RESTART) +
-                            (PGM_STATE_GET(need_to_stop) * CLIENT_STOP) +
-                            (PGM_STATE_GET(need_to_start) * CLIENT_START));
-            if (client_event) handler[client_event].cb(pgm, node);
-            pgm = pgm->next;
+        sem_wait(&node->new_event);
+        pthread_mutex_lock(&node->mtx_queue);
+        client_ev = node->event_queue[0];
+        for (uint32_t i = 0; i < node->ev_queue_size; i++) {
+            node->event_queue[i] = node->event_queue[i + 1];
         }
-        usleep(CLIENT_LISTENING_RATE);
+        node->ev_queue_size--;
+        pthread_mutex_unlock(&node->mtx_queue);
+        sem_post(&node->free_place);
+        execute_event[client_ev.type](client_ev.pgm, node);
     }
-    exit_job_control(node->program_linked_list, node);
     TM_LOG2("taskmaster", "program exit", NULL);
     return NULL;
 }

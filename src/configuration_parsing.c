@@ -796,6 +796,11 @@ void free_program_list(struct program_list *programs)
     close(programs->tm_fd_log);
 
     free_linked_list_in_program_list(programs);
+
+    sem_destroy(&programs->free_place);
+    sem_destroy(&programs->new_event);
+    pthread_mutex_destroy(&(programs->mtx_queue));
+
     if(pthread_mutex_destroy(&(programs->mutex_program_linked_list)) != 0)
         return;
     pthread_mutex_destroy(&(programs->mtx_log));
@@ -981,43 +986,37 @@ void display_program_list(struct program_list *programs)
     }
 
 /**
-* This function init the structure program_list
-*/
-uint8_t init_program_list(struct program_list *program_list)
-    {
-    if(program_list == NULL)
+ * This function init the structure program_list
+ */
+uint8_t init_program_list(struct program_list *pgm_list) {
+    if (!pgm_list || pgm_list->global_status.global_status_struct_init == TRUE)
         return (EXIT_FAILURE);
 
-    if(program_list->global_status.global_status_struct_init == TRUE)
-        return (EXIT_FAILURE);
+    bzero(pgm_list, sizeof(*pgm_list));
 
-    memset(&(program_list->global_status), 0, sizeof(program_list->global_status));
-
-    program_list->last_program_linked_list = NULL;
-    program_list->number_of_program        = 0;
-    program_list->program_linked_list      = NULL;
-
-    if (pthread_attr_init(&program_list->attr))
+    if (pthread_attr_init(&pgm_list->attr))
         log_error("pthread_attr_init error", __FILE__, __func__, __LINE__);
-    if (pthread_attr_setdetachstate(&program_list->attr,
-                                    PTHREAD_CREATE_DETACHED))
+    if (pthread_attr_setdetachstate(&pgm_list->attr, PTHREAD_CREATE_DETACHED))
         log_error("pthread_attr_setdetachstate error", __FILE__, __func__,
                   __LINE__);
 
-    if(pthread_mutex_init(&(program_list->mutex_program_linked_list), NULL) != 0)
+    sem_init(&pgm_list->free_place, 0, LEN_EVENT_QUEUE);
+    sem_init(&pgm_list->new_event, 0, 0);
+    pthread_mutex_init(&(pgm_list->mtx_queue), NULL);
+
+    if (pthread_mutex_init(&(pgm_list->mutex_program_linked_list), NULL) != 0)
         return (EXIT_FAILURE);
 
-    if(pthread_mutex_init(&(program_list->mtx_log), NULL) != 0)
+    if (pthread_mutex_init(&(pgm_list->mtx_log), NULL) != 0)
         return (EXIT_FAILURE);
 
-    program_list->global_status.global_status_struct_init = TRUE;
-    program_list->exit = FALSE;
+    pgm_list->global_status.global_status_struct_init = TRUE;
 
-    program_list->tm_fd_log =
+    pgm_list->tm_fd_log =
         open(TASKMASTER_LOGFILE, O_RDWR | O_APPEND | O_CREAT, 0664);
-    if(program_list->tm_fd_log == -1)
-        log_error("failed to open "TASKMASTER_LOGFILE, __FILE__, __func__,
+    if (pgm_list->tm_fd_log == -1)
+        log_error("failed to open " TASKMASTER_LOGFILE, __FILE__, __func__,
                   __LINE__);
 
     return (EXIT_SUCCESS);
-    }
+}
