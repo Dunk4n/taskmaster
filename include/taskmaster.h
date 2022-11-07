@@ -188,6 +188,22 @@ struct program_specification
     struct program_specification *next;
 };
 
+typedef enum client_event {
+    CLIENT_NOTHING = 0,
+    CLIENT_START,
+    CLIENT_RESTART,
+    CLIENT_STOP,
+    CLIENT_EXIT,
+    CLIENT_MAX_EVENT
+} e_client_event;
+
+struct s_event {
+    struct program_specification *pgm;
+    e_client_event type;
+};
+
+#define LEN_EVENT_QUEUE 16U
+
 /**
 * This structure holds the list of all the programs that will be executed
 * by taskmaster
@@ -198,6 +214,12 @@ struct program_list {
         uint8_t global_status_struct_init  : 1; /* Structure is init */
         uint8_t global_status_conf_loaded  : 1; /* Configuration is loaded */
     } global_status;
+
+    struct s_event event_queue[LEN_EVENT_QUEUE];
+    pthread_mutex_t mtx_queue;
+    sem_t free_place;
+    sem_t new_event;
+    uint32_t ev_queue_size;
 
     pthread_t master_thread; /* id of master thread */
     pthread_attr_t attr; /* pthread attribute initialized to detached */
@@ -297,12 +319,6 @@ uint8_t init_taskmaster(struct taskmaster *taskmaster);
 void    free_taskmaster(struct taskmaster *taskmaster);
 
 /* tm_job_control.c */
-typedef uint8_t (*callback)(struct program_specification *,
-                            struct program_list *);
-
-typedef struct client_handler {
-    callback cb;
-} s_client_handler;
 
 uint8_t tm_job_control(struct program_list *taskmaster);
 

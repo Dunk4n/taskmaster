@@ -1,5 +1,15 @@
 #include "taskmaster.h"
+#include "tm_job_control.h"
 #include "minishell.h"
+
+static void add_event(struct program_list *node, struct s_event event) {
+    sem_wait(&node->free_place);
+    pthread_mutex_lock(&node->mtx_queue);
+    node->event_queue[node->ev_queue_size] = event;
+    node->ev_queue_size++;
+    pthread_mutex_unlock(&node->mtx_queue);
+    sem_post(&node->new_event);
+}
 
 void    print_command_output(struct taskmaster *taskmaster, uint8_t *buffer)
     {
@@ -354,7 +364,7 @@ uint8_t shell_command_start_function(struct taskmaster *taskmaster, uint8_t **ar
                             snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, BOLD"Start program ["COLOR_RESET"%s"BOLD"]"COLOR_RESET":\n\n", arguments[cnt]);
                             print_command_output(taskmaster, buffer);
 
-                            actual_program->program_state.need_to_start = TRUE;
+                            add_event(&taskmaster->programs, (struct s_event){actual_program, CLIENT_START});
                             }
                         break;
                         }
@@ -378,6 +388,18 @@ uint8_t shell_command_start_function(struct taskmaster *taskmaster, uint8_t **ar
 
     return (EXIT_SUCCESS);
     }
+
+/*
+ * returns true if at least one processus is active
+ * (starting, stopping or started)
+ */
+static uint8_t is_proc_active(struct program_specification *pgm) {
+    uint8_t activity = 0;
+
+    for (uint32_t i = 0; i < pgm->number_of_process && !activity; i++)
+        activity = IS_PROC_ACTIVE(&pgm->thrd[i]);
+    return activity;
+}
 
 uint8_t shell_command_stop_function(struct taskmaster *taskmaster, uint8_t **arguments)
     {
@@ -434,7 +456,7 @@ uint8_t shell_command_stop_function(struct taskmaster *taskmaster, uint8_t **arg
                     {
                     if(actual_program->global_status.global_status_conf_loaded == TRUE)
                         {
-                        if(actual_program->program_state.started == FALSE)
+                        if(!is_proc_active(actual_program))
                             {
                             snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, BOLD"Program ["COLOR_RESET"%s"BOLD"] is already stoped"COLOR_RESET":\n\n", arguments[cnt]);
                             print_command_output(taskmaster, buffer);
@@ -452,11 +474,6 @@ uint8_t shell_command_stop_function(struct taskmaster *taskmaster, uint8_t **arg
                         else if(actual_program->program_state.need_to_start == TRUE)
                             {
                             snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, BOLD"Program ["COLOR_RESET"%s"BOLD"] need to start"COLOR_RESET":\n\n", arguments[cnt]);
-                            print_command_output(taskmaster, buffer);
-                            }
-                        else if(actual_program->program_state.starting == TRUE)
-                            {
-                            snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, BOLD"Program ["COLOR_RESET"%s"BOLD"] is already starting"COLOR_RESET":\n\n", arguments[cnt]);
                             print_command_output(taskmaster, buffer);
                             }
                         else if(actual_program->program_state.stopping == TRUE)
@@ -481,7 +498,7 @@ uint8_t shell_command_stop_function(struct taskmaster *taskmaster, uint8_t **arg
                             snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, BOLD"Stop program ["COLOR_RESET"%s"BOLD"]"COLOR_RESET":\n\n", arguments[cnt]);
                             print_command_output(taskmaster, buffer);
 
-                            actual_program->program_state.need_to_stop = TRUE;
+                            add_event(&taskmaster->programs, (struct s_event){actual_program, CLIENT_STOP});
                             }
                         break;
                         }
@@ -603,7 +620,7 @@ uint8_t shell_command_restart_function(struct taskmaster *taskmaster, uint8_t **
                             snprintf((char *) buffer, OUTPUT_BUFFER_SIZE, BOLD"Restart program ["COLOR_RESET"%s"BOLD"]"COLOR_RESET":\n\n", arguments[cnt]);
                             print_command_output(taskmaster, buffer);
 
-                            actual_program->program_state.need_to_restart = TRUE;
+                            add_event(&taskmaster->programs, (struct s_event){actual_program, CLIENT_RESTART});
                             }
                         break;
                         }
@@ -731,7 +748,8 @@ uint8_t shell_command_exit_function(struct taskmaster *taskmaster, uint8_t **arg
     /* stop_and_wait_all_the_program(taskmaster); */
 
     taskmaster->global_status.global_status_exit = TRUE;
-    taskmaster->programs.exit = TRUE;
+
+    add_event(&taskmaster->programs, (struct s_event){taskmaster->programs.program_linked_list, CLIENT_EXIT});
 
     if(taskmaster->global_status.global_status_start_as_daemon == TRUE)
         {
