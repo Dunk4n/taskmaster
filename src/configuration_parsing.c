@@ -350,7 +350,7 @@ static void init_thread(struct program_specification *pgm,
 
     for (uint32_t id = 0; id < pgm->number_of_process; id++) {
         thrd = &pgm->thrd[id];
-        pthread_mutex_init(&thrd->mtx_thrd, NULL);
+        pthread_rwlock_init(&thrd->rw_thrd, NULL);
         pthread_barrier_init(&thrd->sync_barrier, NULL, 2);
         pthread_mutex_init(&thrd->mtx_wakeup, NULL);
         pthread_cond_init(&thrd->cond_wakeup, NULL);
@@ -698,7 +698,7 @@ void free_program_specification(struct program_specification *pgm) {
 
     sem_destroy(&pgm->thrd->sync);
     pthread_barrier_destroy(&pgm->thrd->sync_barrier);
-    pthread_mutex_destroy(&pgm->thrd->mtx_thrd);
+    pthread_rwlock_destroy(&pgm->thrd->rw_thrd);
     pthread_mutex_destroy(&pgm->thrd->mtx_timer);
     pthread_cond_destroy(&pgm->thrd->cond_timer);
     pthread_mutex_destroy(&pgm->thrd->mtx_wakeup);

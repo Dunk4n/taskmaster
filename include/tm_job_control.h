@@ -38,7 +38,8 @@ typedef struct timeval tm_timeval_t;
 
 /* runtime data relative to a thread. One launcher thread has one timer */
 struct thread_data {
-    pthread_mutex_t mtx_thrd;
+    /* pthread_mutex_t rw_thrd; */
+    pthread_rwlock_t rw_thrd;
     /* constant synchronization between timer & launcher */
     pthread_barrier_t sync_barrier;
 
@@ -145,11 +146,11 @@ struct thread_data {
  *   name    is the name of the variable from the struct that we want to update
  *   value   is the value we want to give to this variable
  **/
-#define THRD_DATA_SET(name, value)             \
-    do {                                       \
-        pthread_mutex_lock(&thrd->mtx_thrd);   \
-        thrd->name = value;                    \
-        pthread_mutex_unlock(&thrd->mtx_thrd); \
+#define THRD_DATA_SET(name, value)              \
+    do {                                        \
+        pthread_rwlock_wrlock(&thrd->rw_thrd); \
+        thrd->name = value;                     \
+        pthread_rwlock_unlock(&thrd->rw_thrd); \
     } while (0)
 
 /* generic getters functions to have lock-free value from struct thread_data */
@@ -159,14 +160,14 @@ struct thread_data {
 #define THRD_DATA_GET_DECL(type)                                    \
     static type THRD_DATA_GET_FUNC(type)(struct thread_data * thrd, \
                                          type * value)
-#define THRD_DATA_GET_IMPLEMENTATION           \
-    THRD_DATA_GET_DECL(THRD_TYPE) {            \
-        THRD_TYPE save;                        \
-                                               \
-        pthread_mutex_lock(&thrd->mtx_thrd);   \
-        save = *value;                         \
-        pthread_mutex_unlock(&thrd->mtx_thrd); \
-        return save;                           \
+#define THRD_DATA_GET_IMPLEMENTATION            \
+    THRD_DATA_GET_DECL(THRD_TYPE) {             \
+        THRD_TYPE save;                         \
+                                                \
+        pthread_rwlock_rdlock(&thrd->rw_thrd); \
+        save = *value;                          \
+        pthread_rwlock_unlock(&thrd->rw_thrd); \
+        return save;                            \
     }
 
 /* thread_data getter. name is the name of the struct variable name */
