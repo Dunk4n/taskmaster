@@ -9,10 +9,8 @@
 #include <string.h>
 
 /* usleep() value for master_thread listening loop - in us */
-#define CLIENT_LISTENING_RATE (2000)
 #define START_SUPERVISOR_RATE (4000)
 #define STOP_SUPERVISOR_RATE (4000)
-#define EXIT_MASTER_RATE (2000)
 #define KILL_TIME_LIMIT (1000000)
 
 enum pgm_states {
