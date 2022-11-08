@@ -345,6 +345,79 @@ start_launcher:
     }
 }
 
+static void stop_signal(struct thread_data *thrd, int32_t signal) {
+    THRD_DATA_SET(restart_counter, 0);
+    if (THRD_DATA_GET(pthread_t, tid) && GET_PROC_STATE != PROC_ST_STOPPING) {
+        /*
+         * we signal the timer here because the kill above can miss or take
+         * long time so the launcher_thread stay blocked and doesn't return
+         * neither exit. The timer is responsible for kill with SIGTERM if
+         * it takes too long time.
+         */
+        pthread_mutex_lock(&thrd->mtx_timer);
+        pthread_cond_signal(&thrd->cond_timer);
+        if (THRD_DATA_GET(uint32_t, pid))
+            kill(THRD_DATA_GET(uint32_t, pid), signal);
+        pthread_mutex_unlock(&thrd->mtx_timer);
+    }
+}
+
+static uint8_t exit_pgm_launchers(struct program_specification *pgm,
+                                  struct program_list *node) {
+    struct thread_data *thrd;
+    struct timeval stop;
+
+    gettimeofday(&stop, NULL);
+    PGM_SPEC_SET(stop_timestamp, stop);
+    for (uint32_t id = 0; id < pgm->number_of_process; id++) {
+        thrd = &pgm->thrd[id];
+        SET_THRD_EVENT(THRD_EV_EXIT);
+        stop_signal(thrd, pgm->stop_signal);
+
+        if (THRD_DATA_GET(pthread_t, tid) && !IS_PROC_ACTIVE(thrd)) {
+            pthread_mutex_lock(&thrd->mtx_wakeup);
+            pthread_cond_broadcast(&thrd->cond_wakeup);
+            pthread_mutex_unlock(&thrd->mtx_wakeup);
+        }
+    }
+    return EXIT_SUCCESS;
+}
+
+static uint8_t join_pgm_launchers(struct program_specification *pgm) {
+    struct thread_data *thrd;
+
+    for (uint32_t id = 0; id < pgm->number_of_process; id++) {
+        thrd = &pgm->thrd[id];
+        if (pthread_join(THRD_DATA_GET(pthread_t, tid), NULL)) {
+            perror("oops");
+            err_display("pthread_join() failed", __FILE__, __func__, __LINE__);
+        }
+    }
+    return EXIT_SUCCESS;
+}
+
+static uint8_t create_launcher_pool(struct program_specification *pgm) {
+    struct thread_data *thrd;
+    for (uint32_t id = 0; id < pgm->number_of_process; id++) {
+        thrd = &pgm->thrd[id];
+        if (pthread_create(&thrd->tid, NULL, routine_launcher_thrd, thrd))
+            log_error("failed to create launcher thread", __FILE__, __func__,
+                      __LINE__);
+
+        /* waits that LT & its timer are idle and waiting for start signal*/
+        sem_wait(&thrd->sync);
+        sem_wait(&thrd->sync);
+    }
+    return EXIT_SUCCESS;
+}
+
+static uint8_t do_nothing(struct program_specification *pgm,
+                          struct program_list *node) {
+    (void)pgm;
+    (void)node;
+    return EXIT_SUCCESS;
+}
+
 /*
  * Start launcher_threads from one struct program_specification, in a
  * detached mode, if it doesn't exists yet and if is inactive.
@@ -369,23 +442,6 @@ static uint8_t do_start(struct program_specification *pgm,
     return EXIT_SUCCESS;
 }
 
-static void stop_signal(struct thread_data *thrd, int32_t signal) {
-    THRD_DATA_SET(restart_counter, 0);
-    if (THRD_DATA_GET(pthread_t, tid) && GET_PROC_STATE != PROC_ST_STOPPING) {
-        /*
-         * we signal the timer here because the kill above can miss or take
-         * long time so the launcher_thread stay blocked and doesn't return
-         * neither exit. The timer is responsible for kill with SIGTERM if
-         * it takes too long time.
-         */
-        pthread_mutex_lock(&thrd->mtx_timer);
-        pthread_cond_signal(&thrd->cond_timer);
-        if (THRD_DATA_GET(uint32_t, pid))
-            kill(THRD_DATA_GET(uint32_t, pid), signal);
-        pthread_mutex_unlock(&thrd->mtx_timer);
-    }
-}
-
 /*
  * Stops all processus from one struct program_specification with the signal
  * set in configuration file.
@@ -405,13 +461,6 @@ static uint8_t do_stop(struct program_specification *pgm,
         stop_signal(thrd, pgm->stop_signal);
     }
     PGM_STATE_SET(need_to_stop, FALSE);
-    return EXIT_SUCCESS;
-}
-
-static uint8_t do_nothing(struct program_specification *pgm,
-                          struct program_list *node) {
-    (void)pgm;
-    (void)node;
     return EXIT_SUCCESS;
 }
 
@@ -438,8 +487,103 @@ static uint8_t do_restart(struct program_specification *pgm,
     return EXIT_SUCCESS;
 }
 
-static uint8_t set_autostart(struct program_specification *pgm,
-                             struct program_list *node) {
+/* exit and destroy pgm. This function is blocking as it joins launchers */
+static uint8_t do_del(struct program_specification *pgm,
+                      struct program_list *node) {
+    TM_LOG2("delete", "%s", PGM_SPEC_GET(str_name));
+    exit_pgm_launchers(pgm, node);
+    join_pgm_launchers(pgm);
+
+    free_program_specification(pgm);
+
+    return EXIT_SUCCESS;
+}
+
+/* create launchers of pgm and start them if auto_start is true */
+static uint8_t do_add(struct program_specification *pgm,
+                      struct program_list *node) {
+    TM_LOG2("add", "%s", PGM_SPEC_GET(str_name));
+    create_launcher_pool(pgm);
+
+    if (PGM_SPEC_GET(auto_start)) do_start(pgm, node);
+    return EXIT_SUCCESS;
+}
+
+/* copy new_pgm values into old_pgm & destroy new_pgm */
+static uint8_t do_soft_reload(struct program_specification *pgm,
+                              struct program_list *node) {
+    struct program_specification *new = pgm->restart_tmp_program;
+
+    TM_LOG2("soft reload", "%s", PGM_SPEC_GET(str_name));
+    /* soft copy from new to pgm */
+    pgm->auto_start = new->auto_start;
+    pgm->e_auto_restart = new->e_auto_restart;
+    pgm->start_time = new->start_time;
+    pgm->start_retries = new->start_retries;
+    pgm->stop_signal = new->stop_signal;
+    pgm->stop_time = new->stop_time;
+    for (uint32_t i = 0; i < pgm->exit_codes_number; i++)
+        pgm->exit_codes[i] = new->exit_codes[i];
+
+    free_program_specification(new);
+
+    return EXIT_SUCCESS;
+}
+
+/*
+ * insert new pgm into the old list, exit & destroy pgm, start new pgm.
+ * Blocking
+ */
+static uint8_t do_hard_reload(struct program_specification *pgm,
+                              struct program_list *node) {
+    struct program_specification *new = pgm->restart_tmp_program,
+                                 *prev = new->restart_tmp_program;
+
+    TM_LOG2("hard reload", "%s", PGM_SPEC_GET(str_name));
+
+    /* insert new in the old list. new->restart_tmp_program holds pgm prev */
+    new->next = pgm->next;
+    if (node->program_linked_list == pgm)
+        node->program_linked_list = new;
+    else
+        prev->next = new;
+    if (node->last_program_linked_list == pgm)
+        node->last_program_linked_list = new;
+
+    new->restart_tmp_program = NULL;
+    pgm->restart_tmp_program = NULL;
+
+    do_del(pgm, node);
+    do_add(new, node);
+
+    return EXIT_SUCCESS;
+}
+
+/* exit LT and wait them. */
+static uint8_t do_exit(struct program_specification *pgm_head,
+                       struct program_list *node) {
+    node->exit = TRUE;
+    TM_LOG2("exit", "...", NULL);
+    for (struct program_specification *pgm = pgm_head; pgm; pgm = pgm->next)
+        exit_pgm_launchers(pgm, node);
+    for (struct program_specification *pgm = pgm_head; pgm; pgm = pgm->next)
+        join_pgm_launchers(pgm);
+    return EXIT_SUCCESS;
+}
+
+static uint8_t create_thread_pool(struct program_list *node) {
+    struct program_specification *pgm = node->program_linked_list;
+
+    for (uint32_t i = 0; i < node->number_of_program && pgm; i++) {
+        create_launcher_pool(pgm);
+        pgm = pgm->next;
+    }
+    return EXIT_SUCCESS;
+}
+
+static uint8_t set_autostart(struct program_list *node) {
+    struct program_specification *pgm = node->program_linked_list;
+
     for (uint32_t i = 0; i < node->number_of_program && pgm; i++) {
         if (PGM_SPEC_GET(auto_start)) do_start(pgm, node);
         pgm = pgm->next;
@@ -447,70 +591,15 @@ static uint8_t set_autostart(struct program_specification *pgm,
     return EXIT_SUCCESS;
 }
 
-/* exit LT and wait them. */
-static uint8_t do_exit(struct program_specification *pgm_head,
-                       struct program_list *node) {
-    struct thread_data *thrd;
-    struct timeval stop;
-
-    node->exit = TRUE;
-    TM_LOG2("exit", "...", NULL);
-    for (struct program_specification *pgm = pgm_head; pgm; pgm = pgm->next) {
-        gettimeofday(&stop, NULL);
-        PGM_SPEC_SET(stop_timestamp, stop);
-        for (uint32_t id = 0; id < pgm->number_of_process; id++) {
-            thrd = &pgm->thrd[id];
-            SET_THRD_EVENT(THRD_EV_EXIT);
-            stop_signal(thrd, pgm->stop_signal);
-
-            if (THRD_DATA_GET(pthread_t, tid) && !IS_PROC_ACTIVE(thrd)) {
-                pthread_mutex_lock(&thrd->mtx_wakeup);
-                pthread_cond_broadcast(&thrd->cond_wakeup);
-                pthread_mutex_unlock(&thrd->mtx_wakeup);
-            }
-        }
-    }
-    for (struct program_specification *pgm = pgm_head; pgm; pgm = pgm->next) {
-        for (uint32_t id = 0; id < pgm->number_of_process; id++) {
-            thrd = &pgm->thrd[id];
-            if (pthread_join(THRD_DATA_GET(pthread_t, tid), NULL)) {
-                perror("oops");
-                err_display("pthread_join() failed", __FILE__, __func__,
-                            __LINE__);
-            }
-        }
-    }
-    return EXIT_SUCCESS;
-}
-
-static uint8_t create_thread_pool(struct program_specification *pgm,
-                                  struct program_list *node) {
-    struct thread_data *thrd;
-
-    for (uint32_t i = 0; i < node->number_of_program && pgm; i++) {
-        for (uint32_t id = 0; id < pgm->number_of_process; id++) {
-            thrd = &pgm->thrd[id];
-            if (pthread_create(&thrd->tid, NULL, routine_launcher_thrd, thrd))
-                log_error("failed to create launcher thread", __FILE__,
-                          __func__, __LINE__);
-
-            /* waits that LT & its timer are idle and waiting for start signal*/
-            sem_wait(&thrd->sync);
-            sem_wait(&thrd->sync);
-        }
-        pgm = pgm->next;
-    }
-    return EXIT_SUCCESS;
-}
-
 uint8_t (*execute_event[CLIENT_MAX_EVENT])(struct program_specification *,
                                            struct program_list *) = {
-    do_nothing, do_start, do_restart, do_stop, do_exit,
+    do_nothing,     do_start,       do_restart, do_stop, do_exit,
+    do_soft_reload, do_hard_reload, do_add,     do_del,
 };
 
 /*
- * The master thread listen the client events - start, stop, restart - and
- * handle them.
+ * The master thread listen the client events
+ * - start, stop, restart, reload, exit - and handle them.
  *
  * @args:
  *   void *arg  is the address of the struct program_list which is the node
@@ -518,11 +607,10 @@ uint8_t (*execute_event[CLIENT_MAX_EVENT])(struct program_specification *,
  **/
 static void *routine_master_thrd(void *arg) {
     struct program_list *node = arg;
-    struct program_specification *pgm = node->program_linked_list;
     struct s_event client_ev;
 
-    create_thread_pool(pgm, node);
-    set_autostart(pgm, node);
+    create_thread_pool(node);
+    set_autostart(node);
 
     while (node->exit == FALSE) {
         sem_wait(&node->new_event);

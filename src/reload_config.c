@@ -1,249 +1,262 @@
 #include "taskmaster.h"
+#include "tm_job_control.h"
 
-static uint8_t is_important_value_changed(struct program_specification *first_program, struct program_specification *second_program)
-    {
-    if(first_program == NULL || second_program == NULL)
-        return (FALSE);
+static void add_event(struct program_list *node, struct s_event event) {
+    sem_wait(&node->free_place);
+    pthread_mutex_lock(&node->mtx_queue);
+    node->event_queue[node->ev_queue_size] = event;
+    node->ev_queue_size++;
+    pthread_mutex_unlock(&node->mtx_queue);
+    sem_post(&node->new_event);
+}
 
-    uint32_t cnt;
+static uint8_t pgm_compare(struct program_specification *pgm_oldlst,
+                           struct program_specification *pgm_newlst) {
+    bool soft_reload =
+        (pgm_oldlst->auto_start != pgm_newlst->auto_start ||
+         pgm_oldlst->e_auto_restart != pgm_newlst->e_auto_restart ||
+         pgm_oldlst->start_time != pgm_newlst->start_time ||
+         pgm_oldlst->start_retries != pgm_newlst->start_retries ||
+         pgm_oldlst->stop_signal != pgm_newlst->stop_signal ||
+         pgm_oldlst->stop_time != pgm_newlst->stop_time);
+    bool hard_reload =
+        (strcmp((char *)pgm_oldlst->str_start_command,
+                (char *)pgm_newlst->str_start_command) ||
+         pgm_oldlst->number_of_process != pgm_newlst->number_of_process ||
+         pgm_oldlst->exit_codes_number != pgm_newlst->exit_codes_number ||
+         strcmp((char *)pgm_oldlst->str_stdout,
+                (char *)pgm_newlst->str_stdout) ||
+         strcmp((char *)pgm_oldlst->str_stderr,
+                (char *)pgm_newlst->str_stderr) ||
+         pgm_oldlst->env_length != pgm_newlst->env_length ||
+         strcmp((char *)pgm_oldlst->working_dir,
+                (char *)pgm_newlst->working_dir) ||
+         pgm_oldlst->umask != pgm_newlst->umask);
 
-    cnt = 0;
+    for (uint32_t cnt = 0; cnt < pgm_oldlst->env_length && !hard_reload; cnt++)
+        if (strcmp((char *)pgm_oldlst->env[cnt],
+                   (char *)pgm_newlst->env[cnt]) != 0)
+            hard_reload = true;
 
-    if(strcmp((char *) first_program->str_start_command, (char *) second_program->str_start_command) != 0)
-        return (TRUE);
+    for (uint32_t cnt = 0; cnt < pgm_oldlst->exit_codes_number && !hard_reload;
+         cnt++)
+        if (pgm_oldlst->exit_codes[cnt] != pgm_newlst->exit_codes[cnt])
+            soft_reload = true;
 
-    if(first_program->number_of_process != second_program->number_of_process)
-        return (TRUE);
+    if (hard_reload)
+        return CLIENT_HARD_RELOAD;
+    else if (soft_reload)
+        return CLIENT_SOFT_RELOAD;
+    else
+        return EXIT_SUCCESS;
+}
 
-    if(first_program->exit_codes_number != second_program->exit_codes_number)
-        return (TRUE);
+/* remove pgm from linked list hold in node. prev must be the link before pgm */
+static void remove_link(struct program_list *node,
+                        struct program_specification *prev,
+                        struct program_specification *pgm) {
+    if (!prev)
+        node->program_linked_list = pgm->next;
+    else
+        prev->next = pgm->next;
+    if (node->last_program_linked_list == pgm)
+        node->last_program_linked_list = prev;
+}
 
-    cnt = 0;
-    while(cnt < first_program->exit_codes_number)
-        {
-        if(first_program->exit_codes[cnt] != second_program->exit_codes[cnt])
-            return (TRUE);
+/*
+ * detect differences of matching pgm between two lists.
+ * - soft reload: a copy from some new_pgm values to old_pgm will be done.
+ * - hard reload: new_pgm will take place of old_pgm in the old list
+ */
+static void ev_reload(struct program_list *node,
+                      struct program_list *new_node) {
+    struct program_specification *pgm_oldlst = node->program_linked_list,
+                                 *pgm_oldlst_prev = NULL, *pgm_newlst_prev;
+    uint8_t ret;
 
-        cnt++;
+    while (pgm_oldlst) {
+        pgm_newlst_prev = NULL;
+        for (struct program_specification *pgm_newlst =
+                 new_node->program_linked_list;
+             pgm_newlst; pgm_newlst = pgm_newlst->next) {
+            if (!strcmp((char *)pgm_oldlst->str_name,
+                        (char *)pgm_newlst->str_name)) {
+                ret = pgm_compare(pgm_oldlst, pgm_newlst);
+
+                if (ret == CLIENT_SOFT_RELOAD) {
+                    /* keep new pgm ptr in old pgm to be used by do_reload() */
+                    pgm_oldlst->restart_tmp_program = pgm_newlst;
+                    /* remove pgm_newlst from the new_list */
+                    remove_link(new_node, pgm_newlst_prev, pgm_newlst);
+
+                    add_event(node,
+                              (struct s_event){pgm_oldlst, CLIENT_SOFT_RELOAD});
+                } else if (ret == CLIENT_HARD_RELOAD) {
+                    /* keep new pgm ptr in old pgm to be used by do_reload() */
+                    pgm_oldlst->restart_tmp_program = pgm_newlst;
+                    /* keep previous old pgm ptr in new pgm for do_reload() */
+                    pgm_newlst->restart_tmp_program = pgm_oldlst_prev;
+                    /* remove pgm_newlst from the new_list */
+                    remove_link(new_node, pgm_newlst_prev, pgm_newlst);
+
+                    /* next iteration of pgm_oldlst will have pgm_newlst as
+                    previous pgm as pgm_newlst will take place into old list */
+                    pgm_oldlst_prev = pgm_newlst;
+
+                    add_event(node,
+                              (struct s_event){pgm_oldlst, CLIENT_HARD_RELOAD});
+                }
+                break;
+            }
+            pgm_newlst_prev = pgm_newlst;
         }
-
-    if(first_program->stop_signal != second_program->stop_signal)
-        return (TRUE);
-
-    if(strcmp((char *) first_program->str_stdout, (char *) second_program->str_stdout) != 0)
-        return (TRUE);
-
-    if(strcmp((char *) first_program->str_stderr, (char *) second_program->str_stderr) != 0)
-        return (TRUE);
-
-    if(first_program->env_length != second_program->env_length)
-        return (TRUE);
-
-    cnt = 0;
-    while(cnt < first_program->env_length)
-        {
-        if(strcmp((char *) first_program->env[cnt], (char *) second_program->env[cnt]) != 0)
-            return (TRUE);
-
-        cnt++;
-        }
-
-    if(strcmp((char *) first_program->working_dir, (char *) second_program->working_dir) != 0)
-        return (TRUE);
-
-    if(first_program->umask != second_program->umask)
-        return (TRUE);
-
-    return (FALSE);
+        if (ret != CLIENT_HARD_RELOAD) pgm_oldlst_prev = pgm_oldlst;
+        pgm_oldlst = pgm_oldlst->next;
     }
+}
+
+/* remove from the old list a pgm not found in the new list and add event. */
+static void ev_delete(struct program_list *node,
+                      struct program_list *new_node) {
+    struct program_specification *pgm_oldlst = node->program_linked_list,
+                                 *prev = NULL, *tmp;
+    bool match;
+
+    while (pgm_oldlst) {
+        match = false;
+
+        for (struct program_specification *pgm_newlst =
+                 new_node->program_linked_list;
+             pgm_newlst; pgm_newlst = pgm_newlst->next) {
+            if (!strcmp((char *)pgm_oldlst->str_name,
+                        (char *)pgm_newlst->str_name)) {
+                match = true;
+                break;
+            }
+        }
+
+        /* no match means the current old pgm doesn't exist in the new list */
+        if (!match) {
+            /* remove pgm_oldlst from the old_list */
+            remove_link(node, prev, pgm_oldlst);
+
+            tmp = pgm_oldlst;
+            pgm_oldlst = pgm_oldlst->next;
+
+            add_event(node, (struct s_event){tmp, CLIENT_DEL});
+        } else {
+            prev = pgm_oldlst;
+            pgm_oldlst = pgm_oldlst->next;
+        }
+    }
+}
+
+/*
+ * transfer from the new list to the old list a pgm from the new list
+ * not found in the old list and add event
+ */
+static void ev_add(struct program_list *node, struct program_list *new_node) {
+    struct program_specification *pgm_newlst = new_node->program_linked_list,
+                                 *prev = NULL, *tmp;
+    bool match;
+
+    while (pgm_newlst) {
+        match = false;
+
+        for (struct program_specification *pgm_oldlst =
+                 node->program_linked_list;
+             pgm_oldlst; pgm_oldlst = pgm_oldlst->next) {
+            if (!strcmp((char *)pgm_newlst->str_name,
+                        (char *)pgm_oldlst->str_name)) {
+                match = true;
+                break;
+            }
+        }
+
+        /* no match means the current new pgm doesn't exist in the old list */
+        if (!match) {
+            /* add pgm_newlst to the old_list */
+            if (!node->program_linked_list) {
+                node->program_linked_list = pgm_newlst;
+                node->last_program_linked_list = pgm_newlst;
+            } else {
+                node->last_program_linked_list->next = pgm_newlst;
+                node->last_program_linked_list = pgm_newlst;
+            }
+
+            /* remove pgm_newlst from the new_list */
+            remove_link(new_node, prev, pgm_newlst);
+
+            tmp = pgm_newlst;
+            pgm_newlst = pgm_newlst->next;
+
+            add_event(node, (struct s_event){tmp, CLIENT_ADD});
+        } else {
+            prev = pgm_newlst;
+            pgm_newlst = pgm_newlst->next;
+        }
+    }
+}
+
+/*
+ * The new pgm from the list have their node variable pointing
+ * to the temporary new_node, which won't be valid in any case. This issue is
+ * because of the design of parse_config_file(), so we correct it here.
+ */
+static void prepare_list(struct program_specification *pgm_newlst,
+                         struct program_list *node) {
+    while (pgm_newlst) {
+        pgm_newlst->node = node;
+        for (uint32_t i = 0; i < pgm_newlst->number_of_process; i++)
+            (&pgm_newlst->thrd[i])->node = node;
+        pgm_newlst = pgm_newlst->next;
+    }
+}
 
 /**
-* This function reload the YAML config file and update the actual program_list
-*/
-uint8_t reload_config_file(uint8_t *file_name, struct program_list *program_list)
-    {
-    if(file_name == NULL)
+ * destroy struct program_list 'node'. Will destroy only pgm which are identical
+ * to old_list. Other pgm are either integrated into old_list or destroyed
+ * during process.
+ */
+static void destroy_node(struct program_list *node) {
+    pthread_attr_destroy(&node->attr);
+    close(node->tm_fd_log);
+
+    free_linked_list_in_program_list(node);
+    sem_destroy(&node->free_place);
+    sem_destroy(&node->new_event);
+    pthread_mutex_destroy(&(node->mtx_queue));
+
+    pthread_mutex_destroy(&(node->mutex_program_linked_list));
+    pthread_mutex_destroy(&(node->mtx_log));
+}
+
+/*
+ * reload the YAML config file & set according events to reload/delete or add
+ * a program.
+ */
+uint8_t reload_config_file(uint8_t *file_name, struct program_list *node) {
+    struct program_list new_node;
+
+    if (!file_name || !node ||
+        node->global_status.global_status_struct_init == FALSE)
         return (EXIT_FAILURE);
 
-    if(program_list == NULL)
+    new_node.global_status.global_status_struct_init = FALSE;
+    if (init_program_list(&new_node) != EXIT_SUCCESS) return (EXIT_FAILURE);
+
+    if (parse_config_file(file_name, &new_node) != EXIT_SUCCESS) {
+        free_program_list(&new_node);
         return (EXIT_FAILURE);
-
-    if(program_list->global_status.global_status_struct_init == FALSE)
-        return (EXIT_FAILURE);
-
-    struct program_list           new_program_list;
-    struct program_specification *actual_program;
-    struct program_specification *actual_program_original_list;
-    struct program_specification *previous_program;
-    uint32_t                      cnt;
-    uint32_t                      cnt_new_list;
-    uint32_t                      list_length;
-
-    actual_program               = NULL;
-    actual_program_original_list = NULL;
-    cnt                          = 0;
-    cnt_new_list                 = 0;
-    list_length                  = 0;
-    previous_program             = NULL;
-
-    new_program_list.global_status.global_status_struct_init = FALSE;
-    if(init_program_list(&new_program_list) != EXIT_SUCCESS)
-        return (EXIT_FAILURE);
-
-    if(parse_config_file(file_name, &new_program_list) != EXIT_SUCCESS)
-        {
-        free_program_list(&new_program_list);
-        return (EXIT_FAILURE);
-        }
-
-    if(pthread_mutex_lock(&program_list->mutex_program_linked_list) != 0)
-        return (EXIT_FAILURE);
-
-    if(new_program_list.program_linked_list == NULL)
-        {
-        free_linked_list_in_program_list(program_list);
-        program_list->global_status.global_status_conf_loaded = TRUE;
-        }
-    else if(program_list->program_linked_list == NULL)
-        {
-        program_list->program_linked_list = new_program_list.program_linked_list;
-        new_program_list.program_linked_list = NULL;
-
-        program_list->last_program_linked_list = new_program_list.last_program_linked_list;
-        new_program_list.last_program_linked_list = NULL;
-
-        program_list->number_of_program = new_program_list.number_of_program;
-        new_program_list.number_of_program = 0;
-
-        program_list->global_status.global_status_conf_loaded = TRUE;
-        }
-    else
-        {
-        actual_program_original_list = program_list->program_linked_list;
-        cnt = 0;
-        while(cnt < program_list->number_of_program && actual_program_original_list != NULL)
-            {
-            if(actual_program_original_list->global_status.global_status_struct_init == FALSE)
-                {
-                if(pthread_mutex_unlock(&program_list->mutex_program_linked_list) != 0)
-                    {
-                    free_program_list(&new_program_list);
-                    return (EXIT_FAILURE);
-                    }
-                free_program_list(&new_program_list);
-                return (EXIT_FAILURE);
-                }
-
-            list_length      = new_program_list.number_of_program;
-            actual_program   = new_program_list.program_linked_list;
-            previous_program = NULL;
-            cnt_new_list     = 0;
-            while(cnt_new_list < new_program_list.number_of_program && actual_program != NULL)
-                {
-                if(actual_program->global_status.global_status_struct_init == FALSE)
-                    {
-                    if(pthread_mutex_unlock(&program_list->mutex_program_linked_list) != 0)
-                        {
-                        free_program_list(&new_program_list);
-                        return (EXIT_FAILURE);
-                        }
-                    free_program_list(&new_program_list);
-                    return (EXIT_FAILURE);
-                    }
-
-                if(actual_program_original_list->name_length == actual_program->name_length && strcmp((char *) actual_program_original_list->str_name, (char *) actual_program->str_name) == 0)
-                    {
-                    if(actual_program_original_list->restart_tmp_program != NULL)
-                        {
-                        free_program_specification(actual_program_original_list->restart_tmp_program);
-                        free(actual_program_original_list->restart_tmp_program);
-                        actual_program_original_list->restart_tmp_program = NULL;
-
-                        actual_program_original_list->global_status.global_status_configuration_reloading = FALSE;
-                        }
-
-                    if(is_important_value_changed(actual_program_original_list, actual_program) == TRUE)
-                        {
-                        actual_program_original_list->global_status.global_status_configuration_reloading = TRUE;
-                        actual_program_original_list->restart_tmp_program = actual_program;
-
-                        actual_program = actual_program->next;
-
-                        if(actual_program_original_list->restart_tmp_program == new_program_list.program_linked_list || previous_program == NULL)
-                            new_program_list.program_linked_list = actual_program;
-                        else
-                            previous_program->next = actual_program;
-
-                        actual_program_original_list->restart_tmp_program->next = NULL;
-                        }
-                    else
-                        {
-                        //TODO add lock for changing value in program
-                        actual_program_original_list->auto_start = actual_program->auto_start;
-                        actual_program_original_list->e_auto_restart = actual_program->e_auto_restart;
-                        actual_program_original_list->start_time = actual_program->start_time;
-                        actual_program_original_list->start_retries = actual_program->start_retries;
-                        actual_program_original_list->stop_time = actual_program->stop_time;
-
-                        if(actual_program == new_program_list.program_linked_list || previous_program == NULL)
-                            new_program_list.program_linked_list = actual_program->next;
-                        else
-                            previous_program->next = actual_program->next;
-
-                        free_program_specification(actual_program);
-                        free(actual_program);
-                        actual_program = NULL;
-                        }
-
-                    new_program_list.number_of_program--;
-                    break;
-                    }
-
-                previous_program = actual_program;
-                actual_program = actual_program->next;
-                cnt_new_list++;
-                }
-
-            if(cnt_new_list >= list_length) {
-                pthread_mutex_lock(&actual_program_original_list->mtx_pgm_state);
-                actual_program_original_list->program_state.need_to_be_removed = TRUE;
-                pthread_mutex_unlock(&actual_program_original_list->mtx_pgm_state);
-            }
-
-            actual_program_original_list = actual_program_original_list->next;
-            cnt++;
-            }
-
-        if(new_program_list.number_of_program > 0)
-            {
-            if(program_list->last_program_linked_list == NULL)
-                {
-                if(pthread_mutex_unlock(&program_list->mutex_program_linked_list) != 0)
-                    {
-                    free_program_list(&new_program_list);
-                    return (EXIT_FAILURE);
-                    }
-                free_program_list(&new_program_list);
-                return (EXIT_FAILURE);
-                }
-
-            program_list->last_program_linked_list->next = new_program_list.program_linked_list;
-
-            if(new_program_list.last_program_linked_list != NULL)
-                program_list->last_program_linked_list = new_program_list.last_program_linked_list;
-
-            program_list->number_of_program += new_program_list.number_of_program;
-
-            new_program_list.program_linked_list = NULL;
-            new_program_list.last_program_linked_list = NULL;
-            new_program_list.number_of_program = 0;
-            }
-        }
-
-    if(pthread_mutex_unlock(&program_list->mutex_program_linked_list) != 0)
-        return (EXIT_FAILURE);
-
-    free_program_list(&new_program_list);
-
-    return (EXIT_SUCCESS);
     }
+
+    prepare_list(new_node.program_linked_list, node);
+
+    ev_delete(node, &new_node);
+    ev_add(node, &new_node);
+    ev_reload(node, &new_node);
+
+    destroy_node(&new_node);
+
+    return EXIT_SUCCESS;
+}

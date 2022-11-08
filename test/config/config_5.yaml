@@ -9,7 +9,7 @@ programs:
     exitcodes:
       - 0
       - 2
-    startretries: 3
+    startretries: 1
     starttime: 2
     stopsignal: TERM
     stoptime: 3

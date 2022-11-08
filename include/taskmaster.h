@@ -194,6 +194,10 @@ typedef enum client_event {
     CLIENT_RESTART,
     CLIENT_STOP,
     CLIENT_EXIT,
+    CLIENT_SOFT_RELOAD,
+    CLIENT_HARD_RELOAD,
+    CLIENT_ADD,
+    CLIENT_DEL,
     CLIENT_MAX_EVENT
 } e_client_event;
 
@@ -202,7 +206,7 @@ struct s_event {
     e_client_event type;
 };
 
-#define LEN_EVENT_QUEUE 16U
+#define LEN_EVENT_QUEUE 64U
 
 /**
 * This structure holds the list of all the programs that will be executed
