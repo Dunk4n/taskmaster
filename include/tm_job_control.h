@@ -25,6 +25,10 @@ enum pgm_states {
 };
 
 typedef struct timeval tm_timeval_t;
+typedef enum program_auto_restart_status e_auto_restart_stat;
+typedef uint8_t *uint8_Ptr;
+typedef char *char_Ptr;
+typedef char **char_PtrPtr;
 
 /* runtime data relative to a thread. One launcher thread has one timer */
 struct thread_data {
@@ -38,7 +42,7 @@ struct thread_data {
 
     uint32_t rid;  /* rank id of current thread/proc. Index for an array */
     pthread_t tid; /* thread id of current thread */
-    uint32_t pid;  /* pid of current process */
+    pid_t pid;     /* pid of current process */
     int32_t restart_counter; /* how many time the process can be restarted */
     tm_timeval_t start_timestamp; /* time when process started */
 
@@ -50,7 +54,7 @@ struct thread_data {
      * This variable must be set with its macros
      * bits are ordered as following: eeeessss
      * states: stopped - started - stopping - starting.
-     * events: restarting.
+     * events: no_event - stop - restart - exit.
      */
     atomic_uchar info;
 
@@ -64,7 +68,7 @@ struct thread_data {
     bool proc_restart;         /* restart timer */
 };
 
-/* PROCESSUS STATES */
+/* ----- PROCESSUS STATES ----- */
 
 #define PROC_ST_STOPPED (0x00) /* 0000 */
 #define PROC_ST_STARTED (0x01) /* 0001 */
@@ -73,20 +77,20 @@ struct thread_data {
 /* When starting, proc is also stopped - 0100 */
 #define PROC_ST_STARTING (0x04)
 
-/* THREAD EVENTS */
+/* ----- THREAD EVENTS ----- */
 
 #define THRD_EV_NOEVENT (0x0) /* default. */
 #define THRD_EV_STOP (0x1)    /* thread gets idle */
 #define THRD_EV_RESTART (0x2) /* thread gets active */
 #define THRD_EV_EXIT (0x3)    /* thread gets exited */
 
-/* MASKS */
+/* ----- MASKS ----- */
 
 /* proc is active if is either started, starting or stopping - 0111 */
 #define PROC_ACTIVE (0x07)
 #define IS_PROC_ACTIVE(ptr) (((ptr)->info & PROC_ACTIVE) > 0)
 
-/* INFO SETTERS & GETTERS */
+/* ----- INFO SETTERS & GETTERS ----- */
 
 /*
  * if proc state value to set is starting, it overides restarting event to 0,
@@ -108,14 +112,15 @@ struct thread_data {
 
 #define GET_THRD_EVENT (thrd->info >> 4)
 
-/* EXIT & DEBUG MACROS */
+/* ----- EXIT & DEBUG MACROS ----- */
 
 #ifdef DEVELOPEMENT
 #define debug_thrd()                                                        \
     do {                                                                    \
         printf("[%-14s- %-2d] - tid %lu - pid %d - cnt %d\n",               \
-               PGM_SPEC_GET_T(str_name), THRD_DATA_GET(uint32_t, rid),      \
-               THRD_DATA_GET(pthread_t, tid), THRD_DATA_GET(uint32_t, pid), \
+               PGM_SPEC_GET_T(uint8_Ptr, str_name),                         \
+               THRD_DATA_GET(uint32_t, rid), THRD_DATA_GET(pthread_t, tid), \
+               THRD_DATA_GET(pid_t, pid),                                   \
                THRD_DATA_GET(int32_t, restart_counter));                    \
         fflush(stdout);                                                     \
     } while (0)
@@ -129,6 +134,8 @@ struct thread_data {
         err_display(msg, file, func, line);    \
         return (NULL);                         \
     } while (0)
+
+/* ----- THREAD GETTERS & SETTERS ----- */
 
 /*
  * update data in struct thread_data.
@@ -163,31 +170,54 @@ struct thread_data {
 /* thread_data getter. name is the name of the struct variable name */
 #define THRD_DATA_GET(type, name) THRD_DATA_GET_CALL(type, &thrd->name)
 
+/* ----- PGM GETTERS & SETTERS ----- */
+
 /*
  * update data in struct program_specification.
  * @args:
  *   name    is the name of the variable from the struct that we want to update
  *   value   is the value we want to give to this variable
  **/
-#define PGM_SPEC_SET_T(name, value)                                   \
-    do {                                                              \
-        pthread_mutex_lock(&thrd->node->mutex_program_linked_list);   \
-        thrd->pgm->name = value;                                      \
-        pthread_mutex_unlock(&thrd->node->mutex_program_linked_list); \
+#define PGM_SPEC_SET_T(name, value)                \
+    do {                                           \
+        pthread_rwlock_wrlock(&thrd->pgm->rw_pgm); \
+        thrd->pgm->name = value;                   \
+        pthread_rwlock_unlock(&thrd->pgm->rw_pgm); \
     } while (0)
-#define PGM_SPEC_SET(name, value)                               \
-    do {                                                        \
-        pthread_mutex_lock(&node->mutex_program_linked_list);   \
-        pgm->name = value;                                      \
-        pthread_mutex_unlock(&node->mutex_program_linked_list); \
+#define PGM_SPEC_SET(name, value)            \
+    do {                                     \
+        pthread_rwlock_wrlock(&pgm->rw_pgm); \
+        pgm->name = value;                   \
+        pthread_rwlock_unlock(&pgm->rw_pgm); \
     } while (0)
 
-/*
- * program_specification getter (thru a program_specification struct).
- * name is the name of the struct variable name
- **/
-#define PGM_SPEC_GET_T(name) thrd->pgm->name /* get from launcher thread */
-#define PGM_SPEC_GET(name) pgm->name         /* get from master thread */
+/* generic getters functions to have lock-free value from struct
+ * program_specification */
+#define PGM_SPEC_GET_FUNC(type) pgm_spec_get_##type
+#define PGM_SPEC_GET_CALL(type, obj, name) \
+    PGM_SPEC_GET_FUNC(type)(obj, &obj->name)
+
+#define PGM_SPEC_GET_DECL(type)                                             \
+    static type PGM_SPEC_GET_FUNC(type)(struct program_specification * pgm, \
+                                        type * value)
+#define PGM_SPEC_GET_IMPLEMENTATION          \
+    PGM_SPEC_GET_DECL(PGM_SPEC_TYPE) {       \
+        PGM_SPEC_TYPE save;                  \
+                                             \
+        pthread_rwlock_rdlock(&pgm->rw_pgm); \
+        save = *value;                       \
+        pthread_rwlock_unlock(&pgm->rw_pgm); \
+        return save;                         \
+    }
+
+/* pgm_spec getter. name is the name of the struct variable name */
+#define PGM_SPEC_GET_T(type, name) \
+    PGM_SPEC_GET_CALL(type, (thrd->pgm), name) /* get from launcher thread */
+
+#define PGM_SPEC_GET(type, name) \
+    PGM_SPEC_GET_CALL(type, (pgm), name) /* get from master thread */
+
+/* ----- PGM STATE GETTERS & SETTERS ----- */
 
 /*
  * update program_state data into struct program_specification.
@@ -217,9 +247,7 @@ struct thread_data {
 #define PGM_STATE_GET_T(name) pgm_state_getter_t(thrd, name)
 #define PGM_STATE_GET(name) pgm_state_getter(pgm, name)
 
-/*
-** LOG MACROS
-*/
+/* ----- LOGGING MACROS ----- */
 
 #define BUF_LOG_LEN 256
 #define TM_LOG(func, fmt, ...)                                         \
@@ -254,29 +282,30 @@ struct thread_data {
 #define TM_THRD_LOG(status)                                                \
     TM_LOG("launcher thread",                                              \
            "[%s pid[%d]] - tid[%lu] - restart_counter[%d] • [" status "]", \
-           PGM_SPEC_GET_T(str_name), THRD_DATA_GET(uint32_t, pid),         \
+           PGM_SPEC_GET_T(uint8_Ptr, str_name), THRD_DATA_GET(pid_t, pid), \
            THRD_DATA_GET(pthread_t, tid),                                  \
            THRD_DATA_GET(int32_t, restart_counter));
 
 #define TM_CHILDCONTROL_LOG(status)                                           \
     TM_LOG("child supervisor",                                                \
            "[%s pid[%d]] - tid[%lu] - restart_counter[%d] • [" status " %d]", \
-           PGM_SPEC_GET_T(str_name), THRD_DATA_GET(uint32_t, pid),            \
+           PGM_SPEC_GET_T(uint8_Ptr, str_name), THRD_DATA_GET(pid_t, pid),    \
            THRD_DATA_GET(pthread_t, tid),                                     \
            THRD_DATA_GET(int32_t, restart_counter), child_ret);
 
-#define TM_STOP_LOG(status)                                                 \
-    TM_LOG("stop timer",                                                    \
-           "[%s] - tid[%lu] - rank[%d] - stop_time[%d sec] • [" status "]", \
-           PGM_SPEC_GET_T(str_name), THRD_DATA_GET(pthread_t, tid),         \
-           THRD_DATA_GET(uint32_t, rid), PGM_SPEC_GET_T(stop_time));
+#define TM_STOP_LOG(status)                                                    \
+    TM_LOG("stop timer",                                                       \
+           "[%s] - tid[%lu] - rank[%d] - stop_time[%d sec] • [" status "]",    \
+           PGM_SPEC_GET_T(uint8_Ptr, str_name), THRD_DATA_GET(pthread_t, tid), \
+           THRD_DATA_GET(uint32_t, rid), PGM_SPEC_GET_T(uint32_t, stop_time));
 
 #define TM_START_LOG(status)                                                 \
     TM_LOG(                                                                  \
         "start timer",                                                       \
         "[%s pid[%d]] - tid[%lu] - rank[%d] - start_time[%d sec] • [" status \
         "]",                                                                 \
-        PGM_SPEC_GET_T(str_name), pid, THRD_DATA_GET(pthread_t, tid),        \
-        THRD_DATA_GET(uint32_t, rid), PGM_SPEC_GET_T(start_time));
+        PGM_SPEC_GET_T(uint8_Ptr, str_name), pid,                            \
+        THRD_DATA_GET(pthread_t, tid), THRD_DATA_GET(uint32_t, rid),         \
+        PGM_SPEC_GET_T(uint32_t, start_time));
 
 #endif

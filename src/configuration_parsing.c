@@ -71,6 +71,7 @@ static uint8_t initialize_pgm_config(struct program_specification *pgm) {
         return (EXIT_FAILURE);
     if (pthread_mutex_init(&(pgm->mtx_client_event), NULL) != 0)
         return (EXIT_FAILURE);
+    pthread_rwlock_init(&pgm->rw_pgm, NULL);
     pgm->log.out = UNINITIALIZED_FD;
     pgm->log.err = UNINITIALIZED_FD;
 
@@ -730,6 +731,7 @@ void free_program_specification(struct program_specification *pgm) {
     if (pgm->log.out != UNINITIALIZED_FD) close(pgm->log.out);
     if (pgm->log.err != UNINITIALIZED_FD) close(pgm->log.err);
 
+    pthread_rwlock_destroy(&pgm->rw_pgm);
     pthread_mutex_destroy(&(pgm->mtx_pgm_state));
     pthread_mutex_destroy(&(pgm->mtx_client_event));
 

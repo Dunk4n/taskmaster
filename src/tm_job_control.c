@@ -11,12 +11,40 @@ THRD_DATA_GET_IMPLEMENTATION
 #define THRD_TYPE bool
 THRD_DATA_GET_IMPLEMENTATION
 #undef THRD_TYPE
+#define THRD_TYPE pid_t
+THRD_DATA_GET_IMPLEMENTATION
+#undef THRD_TYPE
 #define THRD_TYPE pthread_t
 THRD_DATA_GET_IMPLEMENTATION
 #undef THRD_TYPE
 #define THRD_TYPE tm_timeval_t
 THRD_DATA_GET_IMPLEMENTATION
 #undef THRD_TYPE
+
+#define PGM_SPEC_TYPE uint32_t
+PGM_SPEC_GET_IMPLEMENTATION
+#undef PGM_SPEC_TYPE
+#define PGM_SPEC_TYPE int32_t
+PGM_SPEC_GET_IMPLEMENTATION
+#undef PGM_SPEC_TYPE
+#define PGM_SPEC_TYPE uint16_t
+PGM_SPEC_GET_IMPLEMENTATION
+#undef PGM_SPEC_TYPE
+#define PGM_SPEC_TYPE uint8_t
+PGM_SPEC_GET_IMPLEMENTATION
+#undef PGM_SPEC_TYPE
+#define PGM_SPEC_TYPE e_auto_restart_stat
+PGM_SPEC_GET_IMPLEMENTATION
+#undef PGM_SPEC_TYPE
+#define PGM_SPEC_TYPE uint8_Ptr
+PGM_SPEC_GET_IMPLEMENTATION
+#undef PGM_SPEC_TYPE
+#define PGM_SPEC_TYPE char_PtrPtr
+PGM_SPEC_GET_IMPLEMENTATION
+#undef PGM_SPEC_TYPE
+#define PGM_SPEC_TYPE tm_timeval_t
+PGM_SPEC_GET_IMPLEMENTATION
+#undef PGM_SPEC_TYPE
 
 /* getters */
 
@@ -40,13 +68,22 @@ static uint32_t timediff(struct timeval *time1) {
            1000000;
 }
 
+static uint32_t timediff2(struct timeval time1) {
+    struct timeval time2;
+
+    gettimeofday(&time2, NULL);
+    return (((time2.tv_sec - time1.tv_sec) * 1000000) +
+            (time2.tv_usec - time1.tv_usec)) /
+           1000000;
+}
+
 /* Set pid & tid of the related thread_data structure to 0 */
 static void exit_thread(struct thread_data *thrd) {
     if (!thrd) return;
     THRD_DATA_SET(pid, 0);
     THRD_DATA_SET(proc_restart, FALSE);
     thrd->pgm->nb_thread_alive--;
-    if (PGM_SPEC_GET_T(nb_thread_alive) == 0) PGM_STATE_SET_T(started, FALSE);
+    if (thrd->pgm->nb_thread_alive == 0) PGM_STATE_SET_T(started, FALSE);
 }
 
 /*
@@ -63,10 +100,12 @@ static int32_t child_control(struct thread_data *thrd, pid_t pid) {
         if (WIFEXITED(wstatus)) {
             child_ret = WEXITSTATUS(wstatus);
             for (uint16_t i = 0;
-                 !expected && i < PGM_SPEC_GET_T(exit_codes_number); i++)
-                expected = child_ret == PGM_SPEC_GET_T(exit_codes)[i];
+                 !expected && i < PGM_SPEC_GET_T(uint16_t, exit_codes_number);
+                 i++)
+                expected =
+                    child_ret == PGM_SPEC_GET_T(uint8_Ptr, exit_codes)[i];
             if (expected) {
-                if (PGM_SPEC_GET_T(e_auto_restart) ==
+                if (PGM_SPEC_GET_T(e_auto_restart_stat, e_auto_restart) ==
                     PROGRAM_AUTO_RESTART_UNEXPECTED)
                     THRD_DATA_SET(restart_counter, 0);
                 TM_CHILDCONTROL_LOG("EXITED WITH EXPECTED STATUS");
@@ -97,8 +136,9 @@ static void configure_and_launch(struct thread_data *thrd) {
     struct program_specification *pgm = thrd->pgm;
     struct stat statbuf;
 
-    if (stat(PGM_SPEC_GET(argv)[0], &statbuf) == -1) {
-        TM_LOG("start error", "%s can't be executed", PGM_SPEC_GET(argv)[0]);
+    if (stat(PGM_SPEC_GET(char_PtrPtr, argv)[0], &statbuf) == -1) {
+        TM_LOG("start error", "%s can't be executed",
+               PGM_SPEC_GET(char_PtrPtr, argv)[0]);
         sleep(1);
         exit(EXIT_FAILURE);
     }
@@ -111,13 +151,13 @@ static void configure_and_launch(struct thread_data *thrd) {
     if (pgm->working_dir) {
         if (chdir((char *)pgm->working_dir) == -1)
             TM_LOG("chdir()", "pid [%d] - failed to change directory to %s",
-                   getpid(), PGM_SPEC_GET_T(working_dir));
+                   getpid(), PGM_SPEC_GET_T(uint8_Ptr, working_dir));
     }
     if (pgm->log.out != UNINITIALIZED_FD) dup2(pgm->log.out, STDOUT_FILENO);
     if (pgm->log.err != UNINITIALIZED_FD) dup2(pgm->log.err, STDERR_FILENO);
     if (execve(pgm->argv[0], pgm->argv, (char **)pgm->env) == -1) {
         TM_LOG("execve()", "pid [%d] - failed to call processus %s", getpid(),
-               PGM_SPEC_GET_T(str_name));
+               PGM_SPEC_GET_T(uint8_Ptr, str_name));
         err_display("execve() failed", __FILE__, __func__, __LINE__);
     }
     exit(EXIT_FAILURE);
@@ -163,19 +203,18 @@ static uint8_t stop_time(struct thread_data *thrd) {
 
     SET_PROC_STATE(PROC_ST_STOPPING);
     pthread_mutex_unlock(&thrd->mtx_timer);
-    sem_wait(&thrd->sync);
+    sem_wait(&thrd->sync); /* sync with stop_signal() */
     pthread_mutex_lock(&thrd->mtx_timer);
-    while ((THRD_DATA_GET(uint32_t, pid) > 0) &&
-           timediff(&PGM_SPEC_GET_T(stop_timestamp)) <
-               PGM_SPEC_GET_T(stop_time))
+    while ((THRD_DATA_GET(pid_t, pid) > 0) &&
+           timediff2((PGM_SPEC_GET_T(tm_timeval_t, stop_timestamp))) <
+               PGM_SPEC_GET_T(uint32_t, stop_time))
         usleep(STOP_SUPERVISOR_RATE);
 
     gettimeofday(&stop, NULL);
-    if (THRD_DATA_GET(uint32_t, pid)) {
+    if (THRD_DATA_GET(pid_t, pid)) {
         THRD_DATA_SET(restart_counter, 0);
-        while (THRD_DATA_GET(uint32_t, pid) &&
-               timediff(&stop) < KILL_TIME_LIMIT) {
-            kill(THRD_DATA_GET(uint32_t, pid), SIGKILL);
+        while (THRD_DATA_GET(pid_t, pid) && timediff(&stop) < KILL_TIME_LIMIT) {
+            kill(THRD_DATA_GET(pid_t, pid), SIGKILL);
             usleep(STOP_SUPERVISOR_RATE);
         }
         if (timediff(&stop) > KILL_TIME_LIMIT) {
@@ -232,10 +271,10 @@ wait:
     THRD_DATA_SET(proc_restart, FALSE);
 
     started = THRD_DATA_GET(tm_timeval_t, start_timestamp);
-    pid = THRD_DATA_GET(uint32_t, pid);
+    pid = THRD_DATA_GET(pid_t, pid);
 
     SET_PROC_STATE(PROC_ST_STARTING);
-    while (timediff(&started) < PGM_SPEC_GET_T(start_time)) {
+    while (timediff(&started) < PGM_SPEC_GET_T(uint32_t, start_time)) {
         if (GET_THRD_EVENT) {
             TM_START_LOG("EXITED BEFORE TIME TO LAUNCH");
             stop_time(thrd);
@@ -267,10 +306,10 @@ static void *run_process(struct thread_data *thrd) {
     int32_t pgm_restart = 1;
     pid_t pid;
 
-    THRD_DATA_SET(restart_counter, PGM_SPEC_GET_T(start_retries) + 1);
+    THRD_DATA_SET(restart_counter, PGM_SPEC_GET_T(uint32_t, start_retries) + 1);
     while (pgm_restart > 0) {
         /* the more it restarts the more it sleeps (supervisord behavior) */
-        sleep((PGM_SPEC_GET_T(start_retries) + 1) -
+        sleep((PGM_SPEC_GET_T(uint32_t, start_retries) + 1) -
               THRD_DATA_GET(int32_t, restart_counter));
 
         if (GET_THRD_EVENT) break;
@@ -282,7 +321,7 @@ static void *run_process(struct thread_data *thrd) {
         else {
             thread_data_update(thrd, pid);
             child_control(thrd, pid);
-            pgm_restart = PGM_SPEC_GET_T(e_auto_restart) *
+            pgm_restart = PGM_SPEC_GET_T(e_auto_restart_stat, e_auto_restart) *
                           (THRD_DATA_GET(int32_t, restart_counter));
         }
     }
@@ -358,14 +397,12 @@ static void stop_signal(struct thread_data *thrd, int32_t signal) {
         pthread_mutex_lock(&thrd->mtx_timer);
         sem_post(&thrd->sync);
         pthread_cond_signal(&thrd->cond_timer);
-        if (THRD_DATA_GET(uint32_t, pid))
-            kill(THRD_DATA_GET(uint32_t, pid), signal);
+        if (THRD_DATA_GET(pid_t, pid)) kill(THRD_DATA_GET(pid_t, pid), signal);
         pthread_mutex_unlock(&thrd->mtx_timer);
     }
 }
 
-static uint8_t exit_pgm_launchers(struct program_specification *pgm,
-                                  struct program_list *node) {
+static uint8_t exit_pgm_launchers(struct program_specification *pgm) {
     struct thread_data *thrd;
     struct timeval stop;
 
@@ -374,7 +411,7 @@ static uint8_t exit_pgm_launchers(struct program_specification *pgm,
     for (uint32_t id = 0; id < pgm->number_of_process; id++) {
         thrd = &pgm->thrd[id];
         SET_THRD_EVENT(THRD_EV_EXIT);
-        stop_signal(thrd, pgm->stop_signal);
+        stop_signal(thrd, PGM_SPEC_GET_T(int32_t, stop_signal));
 
         if (THRD_DATA_GET(pthread_t, tid) && !IS_PROC_ACTIVE(thrd)) {
             pthread_mutex_lock(&thrd->mtx_wakeup);
@@ -429,7 +466,7 @@ static uint8_t do_start(struct program_specification *pgm,
                         struct program_list *node) {
     struct thread_data *thrd;
 
-    TM_LOG2("start", "%s", PGM_SPEC_GET(str_name));
+    TM_LOG2("start", "%s", PGM_SPEC_GET(uint8_Ptr, str_name));
     for (uint32_t id = 0; id < pgm->number_of_process; id++) {
         thrd = &pgm->thrd[id];
 
@@ -456,7 +493,7 @@ static uint8_t do_stop(struct program_specification *pgm,
 
     gettimeofday(&stop, NULL);
     PGM_SPEC_SET(stop_timestamp, stop);
-    TM_LOG2("stop", "%s", PGM_SPEC_GET(str_name));
+    TM_LOG2("stop", "%s", PGM_SPEC_GET(uint8_Ptr, str_name));
     for (uint32_t id = 0; id < pgm->number_of_process; id++) {
         thrd = &pgm->thrd[id];
         SET_THRD_EVENT(THRD_EV_STOP);
@@ -473,8 +510,9 @@ static uint8_t do_restart(struct program_specification *pgm,
 
     gettimeofday(&stop, NULL);
     PGM_SPEC_SET(stop_timestamp, stop);
-    TM_LOG2("restart", "%s", PGM_SPEC_GET(str_name));
-    for (uint32_t id = 0; id < PGM_SPEC_GET(number_of_process); id++) {
+    TM_LOG2("restart", "%s", PGM_SPEC_GET(uint8_Ptr, str_name));
+    for (uint32_t id = 0; id < PGM_SPEC_GET(uint32_t, number_of_process);
+         id++) {
         thrd = &pgm->thrd[id];
         SET_THRD_EVENT(THRD_EV_RESTART);
         stop_signal(thrd, pgm->stop_signal);
@@ -492,8 +530,8 @@ static uint8_t do_restart(struct program_specification *pgm,
 /* exit and destroy pgm. This function is blocking as it joins launchers */
 static uint8_t do_del(struct program_specification *pgm,
                       struct program_list *node) {
-    TM_LOG2("delete", "%s", PGM_SPEC_GET(str_name));
-    exit_pgm_launchers(pgm, node);
+    TM_LOG2("delete", "%s", PGM_SPEC_GET(uint8_Ptr, str_name));
+    exit_pgm_launchers(pgm);
     join_pgm_launchers(pgm);
 
     free_program_specification(pgm);
@@ -504,10 +542,10 @@ static uint8_t do_del(struct program_specification *pgm,
 /* create launchers of pgm and start them if auto_start is true */
 static uint8_t do_add(struct program_specification *pgm,
                       struct program_list *node) {
-    TM_LOG2("add", "%s", PGM_SPEC_GET(str_name));
+    TM_LOG2("add", "%s", PGM_SPEC_GET(uint8_Ptr, str_name));
     create_launcher_pool(pgm);
 
-    if (PGM_SPEC_GET(auto_start)) do_start(pgm, node);
+    if (PGM_SPEC_GET(uint8_t, auto_start)) do_start(pgm, node);
     return EXIT_SUCCESS;
 }
 
@@ -516,8 +554,9 @@ static uint8_t do_soft_reload(struct program_specification *pgm,
                               struct program_list *node) {
     struct program_specification *new = pgm->restart_tmp_program;
 
-    TM_LOG2("soft reload", "%s", PGM_SPEC_GET(str_name));
+    TM_LOG2("soft reload", "%s", PGM_SPEC_GET(uint8_Ptr, str_name));
     /* soft copy from new to pgm */
+    pthread_rwlock_wrlock(&pgm->rw_pgm);
     pgm->auto_start = new->auto_start;
     pgm->e_auto_restart = new->e_auto_restart;
     pgm->start_time = new->start_time;
@@ -526,6 +565,7 @@ static uint8_t do_soft_reload(struct program_specification *pgm,
     pgm->stop_time = new->stop_time;
     for (uint32_t i = 0; i < pgm->exit_codes_number; i++)
         pgm->exit_codes[i] = new->exit_codes[i];
+    pthread_rwlock_unlock(&pgm->rw_pgm);
 
     free_program_specification(new);
 
@@ -541,7 +581,7 @@ static uint8_t do_hard_reload(struct program_specification *pgm,
     struct program_specification *new = pgm->restart_tmp_program,
                                  *prev = new->restart_tmp_program;
 
-    TM_LOG2("hard reload", "%s", PGM_SPEC_GET(str_name));
+    TM_LOG2("hard reload", "%s", PGM_SPEC_GET(uint8_Ptr, str_name));
 
     /* insert new in the old list. new->restart_tmp_program holds pgm prev */
     new->next = pgm->next;
@@ -567,7 +607,7 @@ static uint8_t do_exit(struct program_specification *pgm_head,
     node->exit = TRUE;
     TM_LOG2("exit", "...", NULL);
     for (struct program_specification *pgm = pgm_head; pgm; pgm = pgm->next)
-        exit_pgm_launchers(pgm, node);
+        exit_pgm_launchers(pgm);
     for (struct program_specification *pgm = pgm_head; pgm; pgm = pgm->next)
         join_pgm_launchers(pgm);
     return EXIT_SUCCESS;
@@ -587,7 +627,7 @@ static uint8_t set_autostart(struct program_list *node) {
     struct program_specification *pgm = node->program_linked_list;
 
     for (uint32_t i = 0; i < node->number_of_program && pgm; i++) {
-        if (PGM_SPEC_GET(auto_start)) do_start(pgm, node);
+        if (PGM_SPEC_GET(uint8_t, auto_start)) do_start(pgm, node);
         pgm = pgm->next;
     }
     return EXIT_SUCCESS;
