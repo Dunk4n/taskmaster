@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <signal.h>
 
 #define BUF_SIZE 128
 
@@ -12,6 +13,13 @@
 #define SLEEP_TIME 8
 #endif
 
+void handler(int num) {
+  fprintf(stdout, "signal %d catched\n", num);
+  fflush(stdout);
+  fprintf(stderr, "signal %d catched\n", num);
+  fflush(stderr);
+}
+
 int main(int ac, char **av, char **env) {
   pid_t pid = getpid();
   char msg_out[BUF_SIZE] = {0};
@@ -20,6 +28,8 @@ int main(int ac, char **av, char **env) {
 			DAEMON_NAME),
       len_err = sprintf(msg_err, "[%-6d] - %-8s - STDERR - RUNNING\n", pid,
 			DAEMON_NAME);
+
+  signal(SIGTERM, handler);
 
   write(STDOUT_FILENO, msg_out, len_out);
   write(STDERR_FILENO, msg_err, len_err);

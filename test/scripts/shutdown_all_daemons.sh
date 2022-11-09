@@ -31,7 +31,7 @@ shut_this_shit_down() {
 		pid=$(pgrep $name);
 		if [ "$pid" ]; then
 			echo "kill $name, pid $pid";
-			kill -15 $pid;
+			kill -9 $pid;
 		fi
 	done
 }

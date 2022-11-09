@@ -10,9 +10,9 @@ programs:
       - 0
       - 2
     startretries: 1
-    starttime: 2
+    starttime: 15
     stopsignal: TERM
-    stoptime: 3
+    stoptime: 15
     stdout: /tmp/alpha.stdout
     stderr: /tmp/alpha.stderr
     env:

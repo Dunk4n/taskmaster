@@ -747,38 +747,25 @@ void free_program_specification(struct program_specification *pgm) {
 }
 
 /**
-* This function free the linked list of structure program_specification in the structure program_list
-*/
-void free_linked_list_in_program_list(struct program_list *programs)
-    {
-    if(programs == NULL)
+ * destroy node->program_linked_list
+ */
+void free_linked_list_in_program_list(struct program_list *node) {
+    struct program_specification *pgm = node->program_linked_list, *next;
+
+    if (node->global_status.global_status_struct_init == FALSE)
         return;
 
-    if(programs->global_status.global_status_struct_init == FALSE)
-        return;
-
-    struct program_specification *actual_program;
-    uint32_t                      cnt;
-
-    actual_program = NULL;
-    cnt            = 0;
-
-    cnt = 0;
-    while(cnt < programs->number_of_program && programs->program_linked_list != NULL)
-        {
-        actual_program = programs->program_linked_list;
-
-        programs->program_linked_list = actual_program->next;
-
-        free_program_specification(actual_program);
-        free(actual_program);
-        cnt++;
-        }
-
-    programs->program_linked_list = NULL;
-    programs->last_program_linked_list = NULL;
-    programs->number_of_program = 0;
+    while (pgm) {
+        next = pgm->next;
+        free_program_specification(pgm);
+        free(pgm);
+        pgm = next;
     }
+
+    node->program_linked_list = NULL;
+    node->last_program_linked_list = NULL;
+    node->number_of_program = 0;
+}
 
 /**
 * This function free the structure program_list
