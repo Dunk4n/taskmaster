@@ -157,13 +157,14 @@ static void *exit_launcher_thread(struct thread_data *thrd) {
  * checks if the process is stopped in the given time otherwise it sends a kill
  * signal. To be sure the signal is catched, it is sent in a loop during 1 sec
  * if ever the proc is still alive.
- * return 0 if LT & timer have to exit (exit flag) otherwise returns non-NULL
- * (if restarted or killed).
  */
 static uint8_t stop_time(struct thread_data *thrd) {
     struct timeval stop;
 
     SET_PROC_STATE(PROC_ST_STOPPING);
+    pthread_mutex_unlock(&thrd->mtx_timer);
+    sem_wait(&thrd->sync);
+    pthread_mutex_lock(&thrd->mtx_timer);
     while ((THRD_DATA_GET(uint32_t, pid) > 0) &&
            timediff(&PGM_SPEC_GET_T(stop_timestamp)) <
                PGM_SPEC_GET_T(stop_time))
@@ -174,7 +175,7 @@ static uint8_t stop_time(struct thread_data *thrd) {
         THRD_DATA_SET(restart_counter, 0);
         while (THRD_DATA_GET(uint32_t, pid) &&
                timediff(&stop) < KILL_TIME_LIMIT) {
-            kill(THRD_DATA_GET(uint32_t, pid), SIGTERM);
+            kill(THRD_DATA_GET(uint32_t, pid), SIGKILL);
             usleep(STOP_SUPERVISOR_RATE);
         }
         if (timediff(&stop) > KILL_TIME_LIMIT) {
@@ -355,6 +356,7 @@ static void stop_signal(struct thread_data *thrd, int32_t signal) {
          * it takes too long time.
          */
         pthread_mutex_lock(&thrd->mtx_timer);
+        sem_post(&thrd->sync);
         pthread_cond_signal(&thrd->cond_timer);
         if (THRD_DATA_GET(uint32_t, pid))
             kill(THRD_DATA_GET(uint32_t, pid), signal);

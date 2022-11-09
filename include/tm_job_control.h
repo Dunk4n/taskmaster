@@ -11,7 +11,7 @@
 /* usleep() value for master_thread listening loop - in us */
 #define START_SUPERVISOR_RATE (4000)
 #define STOP_SUPERVISOR_RATE (4000)
-#define KILL_TIME_LIMIT (1000000)
+#define KILL_TIME_LIMIT (5) /* in sec */
 
 enum pgm_states {
     started = 1 << 0,
@@ -136,10 +136,10 @@ struct thread_data {
  *   name    is the name of the variable from the struct that we want to update
  *   value   is the value we want to give to this variable
  **/
-#define THRD_DATA_SET(name, value)              \
-    do {                                        \
+#define THRD_DATA_SET(name, value)             \
+    do {                                       \
         pthread_rwlock_wrlock(&thrd->rw_thrd); \
-        thrd->name = value;                     \
+        thrd->name = value;                    \
         pthread_rwlock_unlock(&thrd->rw_thrd); \
     } while (0)
 
@@ -150,14 +150,14 @@ struct thread_data {
 #define THRD_DATA_GET_DECL(type)                                    \
     static type THRD_DATA_GET_FUNC(type)(struct thread_data * thrd, \
                                          type * value)
-#define THRD_DATA_GET_IMPLEMENTATION            \
-    THRD_DATA_GET_DECL(THRD_TYPE) {             \
-        THRD_TYPE save;                         \
-                                                \
+#define THRD_DATA_GET_IMPLEMENTATION           \
+    THRD_DATA_GET_DECL(THRD_TYPE) {            \
+        THRD_TYPE save;                        \
+                                               \
         pthread_rwlock_rdlock(&thrd->rw_thrd); \
-        save = *value;                          \
+        save = *value;                         \
         pthread_rwlock_unlock(&thrd->rw_thrd); \
-        return save;                            \
+        return save;                           \
     }
 
 /* thread_data getter. name is the name of the struct variable name */
@@ -222,19 +222,19 @@ struct thread_data {
 */
 
 #define BUF_LOG_LEN 256
-#define TM_LOG(func, fmt, ...)                                       \
-    do {                                                             \
-        pthread_mutex_lock(&thrd->node->mtx_log);                    \
-        char buf[BUF_LOG_LEN] = {0};                                 \
-        time_t t = time(NULL);                                       \
-        char *curr_time = asctime(localtime(&t));                    \
-        uint32_t len = strlen(curr_time) - 5;                        \
-                                                                     \
-        strncpy(buf, curr_time, len);                                \
-        snprintf(buf + len, BUF_LOG_LEN, "- [" func "] - " fmt "\n", \
-                 __VA_ARGS__);                                       \
-        write(thrd->node->tm_fd_log, buf, strlen(buf));              \
-        pthread_mutex_unlock(&thrd->node->mtx_log);                  \
+#define TM_LOG(func, fmt, ...)                                         \
+    do {                                                               \
+        pthread_mutex_lock(&thrd->node->mtx_log);                      \
+        char buf[BUF_LOG_LEN] = {0};                                   \
+        time_t t = time(NULL);                                         \
+        char *curr_time = asctime(localtime(&t));                      \
+        uint32_t len = strlen(curr_time) - 5;                          \
+                                                                       \
+        strncpy(buf, curr_time, len);                                  \
+        snprintf(buf + len, BUF_LOG_LEN, "- [%17s] - " fmt "\n", func, \
+                 __VA_ARGS__);                                         \
+        write(thrd->node->tm_fd_log, buf, strlen(buf));                \
+        pthread_mutex_unlock(&thrd->node->mtx_log);                    \
     } while (0)
 #define TM_LOG2(func, fmt, ...)                                      \
     do {                                                             \
@@ -265,13 +265,11 @@ struct thread_data {
            THRD_DATA_GET(pthread_t, tid),                                     \
            THRD_DATA_GET(int32_t, restart_counter), child_ret);
 
-#define TM_STOP_LOG(status)                                                    \
-    TM_LOG("stop timer",                                                       \
-           "[%s pid[%d]] - tid[%lu] - rank[%d] - stop_time[%d sec] • [" status \
-           "]",                                                                \
-           PGM_SPEC_GET_T(str_name), THRD_DATA_GET(uint32_t, pid),             \
-           THRD_DATA_GET(pthread_t, tid), THRD_DATA_GET(uint32_t, rid),        \
-           PGM_SPEC_GET_T(stop_time));
+#define TM_STOP_LOG(status)                                                 \
+    TM_LOG("stop timer",                                                    \
+           "[%s] - tid[%lu] - rank[%d] - stop_time[%d sec] • [" status "]", \
+           PGM_SPEC_GET_T(str_name), THRD_DATA_GET(pthread_t, tid),         \
+           THRD_DATA_GET(uint32_t, rid), PGM_SPEC_GET_T(stop_time));
 
 #define TM_START_LOG(status)                                                 \
     TM_LOG(                                                                  \

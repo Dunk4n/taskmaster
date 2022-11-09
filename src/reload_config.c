@@ -190,6 +190,9 @@ static void ev_add(struct program_list *node, struct program_list *new_node) {
             tmp = pgm_newlst;
             pgm_newlst = pgm_newlst->next;
 
+            /* update its next pointer */
+            tmp->next = NULL;
+
             add_event(node, (struct s_event){tmp, CLIENT_ADD});
         } else {
             prev = pgm_newlst;
@@ -238,6 +241,7 @@ static void destroy_node(struct program_list *node) {
 uint8_t reload_config_file(uint8_t *file_name, struct program_list *node) {
     struct program_list new_node;
 
+    TM_LOG2("reload", "...", NULL);
     if (!file_name || !node ||
         node->global_status.global_status_struct_init == FALSE)
         return (EXIT_FAILURE);
