@@ -151,6 +151,9 @@ struct program_specification
         uint8_t need_to_be_removed : 1;
         } program_state;
 
+    /* pthread_mutex_t rw_thrd; */
+    pthread_rwlock_t rw_pgm;
+
     uint8_t                          *str_name;
     size_t                            name_length;
     uint8_t                          *str_start_command;        // 1.  The command to use to launch the program

@@ -10,6 +10,23 @@ static void add_event(struct program_list *node, struct s_event event) {
     sem_post(&node->new_event);
 }
 
+int32_t	tm_strcmp(const char *s1, const char *s2)
+{
+	const unsigned char	*s1_cp = (const unsigned char *)s1;
+	const unsigned char	*s2_cp = (const unsigned char *)s2;
+  uint8_t diff;
+
+  if (!s1_cp && !s2_cp) return EXIT_SUCCESS;
+  if (!s1_cp || !s2_cp) return EXIT_FAILURE;
+  diff = (*s1_cp != *s2_cp);
+	while (*s1_cp && *s2_cp && !diff) {
+      s1_cp++;
+      s2_cp++;
+      diff = (*s1_cp != *s2_cp);
+  }
+  return (*s1_cp - *s2_cp);
+}
+
 static uint8_t pgm_compare(struct program_specification *pgm_oldlst,
                            struct program_specification *pgm_newlst) {
     bool soft_reload =
@@ -20,21 +37,21 @@ static uint8_t pgm_compare(struct program_specification *pgm_oldlst,
          pgm_oldlst->stop_signal != pgm_newlst->stop_signal ||
          pgm_oldlst->stop_time != pgm_newlst->stop_time);
     bool hard_reload =
-        (strcmp((char *)pgm_oldlst->str_start_command,
+        (tm_strcmp((char *)pgm_oldlst->str_start_command,
                 (char *)pgm_newlst->str_start_command) ||
          pgm_oldlst->number_of_process != pgm_newlst->number_of_process ||
          pgm_oldlst->exit_codes_number != pgm_newlst->exit_codes_number ||
-         strcmp((char *)pgm_oldlst->str_stdout,
+         tm_strcmp((char *)pgm_oldlst->str_stdout,
                 (char *)pgm_newlst->str_stdout) ||
-         strcmp((char *)pgm_oldlst->str_stderr,
+         tm_strcmp((char *)pgm_oldlst->str_stderr,
                 (char *)pgm_newlst->str_stderr) ||
          pgm_oldlst->env_length != pgm_newlst->env_length ||
-         strcmp((char *)pgm_oldlst->working_dir,
+         tm_strcmp((char *)pgm_oldlst->working_dir,
                 (char *)pgm_newlst->working_dir) ||
          pgm_oldlst->umask != pgm_newlst->umask);
 
     for (uint32_t cnt = 0; cnt < pgm_oldlst->env_length && !hard_reload; cnt++)
-        if (strcmp((char *)pgm_oldlst->env[cnt],
+        if (tm_strcmp((char *)pgm_oldlst->env[cnt],
                    (char *)pgm_newlst->env[cnt]) != 0)
             hard_reload = true;
 
@@ -79,7 +96,7 @@ static void ev_reload(struct program_list *node,
         for (struct program_specification *pgm_newlst =
                  new_node->program_linked_list;
              pgm_newlst; pgm_newlst = pgm_newlst->next) {
-            if (!strcmp((char *)pgm_oldlst->str_name,
+            if (!tm_strcmp((char *)pgm_oldlst->str_name,
                         (char *)pgm_newlst->str_name)) {
                 ret = pgm_compare(pgm_oldlst, pgm_newlst);
 
@@ -128,7 +145,7 @@ static void ev_delete(struct program_list *node,
         for (struct program_specification *pgm_newlst =
                  new_node->program_linked_list;
              pgm_newlst; pgm_newlst = pgm_newlst->next) {
-            if (!strcmp((char *)pgm_oldlst->str_name,
+            if (!tm_strcmp((char *)pgm_oldlst->str_name,
                         (char *)pgm_newlst->str_name)) {
                 match = true;
                 break;
@@ -166,7 +183,7 @@ static void ev_add(struct program_list *node, struct program_list *new_node) {
         for (struct program_specification *pgm_oldlst =
                  node->program_linked_list;
              pgm_oldlst; pgm_oldlst = pgm_oldlst->next) {
-            if (!strcmp((char *)pgm_newlst->str_name,
+            if (!tm_strcmp((char *)pgm_newlst->str_name,
                         (char *)pgm_oldlst->str_name)) {
                 match = true;
                 break;
