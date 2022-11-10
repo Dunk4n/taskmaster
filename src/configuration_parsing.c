@@ -697,13 +697,15 @@ void free_program_specification(struct program_specification *pgm) {
     free(pgm->str_name);
     free(pgm->str_start_command);
 
-    sem_destroy(&pgm->thrd->sync);
-    pthread_barrier_destroy(&pgm->thrd->sync_barrier);
-    pthread_rwlock_destroy(&pgm->thrd->rw_thrd);
-    pthread_mutex_destroy(&pgm->thrd->mtx_timer);
-    pthread_cond_destroy(&pgm->thrd->cond_timer);
-    pthread_mutex_destroy(&pgm->thrd->mtx_wakeup);
-    pthread_cond_destroy(&pgm->thrd->cond_wakeup);
+    if (pgm->thrd) {
+        sem_destroy(&pgm->thrd->sync);
+        pthread_barrier_destroy(&pgm->thrd->sync_barrier);
+        pthread_rwlock_destroy(&pgm->thrd->rw_thrd);
+        pthread_mutex_destroy(&pgm->thrd->mtx_timer);
+        pthread_cond_destroy(&pgm->thrd->cond_timer);
+        pthread_mutex_destroy(&pgm->thrd->mtx_wakeup);
+        pthread_cond_destroy(&pgm->thrd->cond_wakeup);
+    }
 
     if (pgm->thrd) free(pgm->thrd);
     if (pgm->argv) {

@@ -8,9 +8,6 @@ THRD_DATA_GET_IMPLEMENTATION
 #define THRD_TYPE int32_t
 THRD_DATA_GET_IMPLEMENTATION
 #undef THRD_TYPE
-#define THRD_TYPE bool
-THRD_DATA_GET_IMPLEMENTATION
-#undef THRD_TYPE
 #define THRD_TYPE pid_t
 THRD_DATA_GET_IMPLEMENTATION
 #undef THRD_TYPE
@@ -81,7 +78,6 @@ static uint32_t timediff2(struct timeval time1) {
 static void exit_thread(struct thread_data *thrd) {
     if (!thrd) return;
     THRD_DATA_SET(pid, 0);
-    THRD_DATA_SET(proc_restart, FALSE);
     thrd->pgm->nb_thread_alive--;
     if (thrd->pgm->nb_thread_alive == 0) PGM_STATE_SET_T(started, FALSE);
 }
@@ -90,7 +86,7 @@ static void exit_thread(struct thread_data *thrd) {
  * wait for child to exit() or to be killed by any signal
  **/
 static int32_t child_control(struct thread_data *thrd, pid_t pid) {
-    int32_t rt, w, wstatus, child_ret = 0;
+    int32_t w, wstatus, child_ret = 0;
     uint8_t expected = FALSE;
 
     do {
@@ -121,9 +117,8 @@ static int32_t child_control(struct thread_data *thrd, pid_t pid) {
             TM_CHILDCONTROL_LOG("CONTINUED");
         }
     } while (!WIFEXITED(wstatus) && !WIFSIGNALED(wstatus));
-    rt = THRD_DATA_GET(int32_t, restart_counter) - 1;
-    THRD_DATA_SET(proc_restart, (rt > 0));
     THRD_DATA_SET(pid, 0);
+    if (GET_THRD_EVENT == THRD_EV_NOEVENT) SET_PROC_STATE(PROC_ST_STOPPED);
     return child_ret;
 }
 
@@ -201,6 +196,10 @@ static void *exit_launcher_thread(struct thread_data *thrd) {
 static uint8_t stop_time(struct thread_data *thrd) {
     struct timeval stop;
 
+    /* in the case of a processus stopping without client event, stopped state
+     * is set directly after the waitpid() and we don't want to time it */
+    if (GET_PROC_STATE == PROC_ST_STOPPED) return EXIT_SUCCESS;
+
     SET_PROC_STATE(PROC_ST_STOPPING);
     pthread_mutex_unlock(&thrd->mtx_timer);
     sem_wait(&thrd->sync); /* sync with stop_signal() */
@@ -268,7 +267,6 @@ wait:
         stop_time(thrd);
         goto check_ret;
     }
-    THRD_DATA_SET(proc_restart, FALSE);
 
     started = THRD_DATA_GET(tm_timeval_t, start_timestamp);
     pid = THRD_DATA_GET(pid_t, pid);
@@ -280,14 +278,15 @@ wait:
             stop_time(thrd);
             goto check_ret;
         }
-        if (THRD_DATA_GET(bool, proc_restart)) {
-            TM_START_LOG("DIDN'T LAUNCHED CORRECTLY");
+        if (GET_PROC_STATE == PROC_ST_STOPPED) {
+            TM_START_LOG("DIDN'T STARTED CORRECTLY");
             goto wait;
         }
         usleep(START_SUPERVISOR_RATE);
     }
     SET_PROC_STATE(PROC_ST_STARTED);
-    TM_START_LOG("LAUNCHED CORRECTLY");
+
+    TM_START_LOG("STARTED CORRECTLY");
     goto wait;
 
 check_ret:
@@ -323,6 +322,8 @@ static void *run_process(struct thread_data *thrd) {
             child_control(thrd, pid);
             pgm_restart = PGM_SPEC_GET_T(e_auto_restart_stat, e_auto_restart) *
                           (THRD_DATA_GET(int32_t, restart_counter));
+            if (GET_THRD_EVENT == THRD_EV_NOEVENT && pgm_restart)
+                TM_LOG("auto restart", "", NULL);
         }
     }
     return NULL;
@@ -370,6 +371,7 @@ start_launcher:
     pthread_mutex_lock(&thrd->mtx_timer); /* wait stop timer to finish */
     if (GET_THRD_EVENT == THRD_EV_NOEVENT) {
         SET_THRD_EVENT(THRD_EV_STOP);
+        sem_post(&thrd->sync);
         pthread_cond_signal(&thrd->cond_timer);
         pthread_mutex_unlock(&thrd->mtx_timer);
         goto idle_launcher;
@@ -535,6 +537,7 @@ static uint8_t do_del(struct program_specification *pgm,
     join_pgm_launchers(pgm);
 
     free_program_specification(pgm);
+    free(pgm);
 
     return EXIT_SUCCESS;
 }
