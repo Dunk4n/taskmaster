@@ -65,7 +65,6 @@ struct thread_data {
     pthread_mutex_t mtx_timer;
     pthread_cond_t cond_timer; /* conditon variable to unlock timer */
     pthread_t timer_id;        /* thread id of start_timer thread */
-    bool proc_restart;         /* restart timer */
 };
 
 /* ----- PROCESSUS STATES ----- */
