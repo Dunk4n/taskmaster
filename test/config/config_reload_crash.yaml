@@ -1,0 +1,14 @@
+programs:
+  aaa:
+    cmd: "/home/niduches/42/Project/Unix/taskmaster/a.out"
+    numprocs: 10
+    autostart: true
+    autorestart: unexpected
+    exitcodes:
+      - 2
+    startretries: 3
+    starttime: 7
+    stopsignal: USR1
+    stoptime: 10
+    stdout: /tmp/nginx.stdout
+    stderr: /tmp/nginx.stderr
